@@ -109,6 +109,9 @@ size_t rdp_build_ack_package(uint8_t *buf, uint8_t src, uint8_t dst,
 {
     const size_t var = 18;
     const size_t hlen = var;
+    if (hlen + dlen > RDP_MAX_SEGMENT_SIZE)
+        return 0;
+
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
     hdr->syn = 0;
     hdr->ack = 1;
@@ -139,6 +142,9 @@ size_t rdb_build_eack_package(uint8_t *buf, uint8_t src, uint8_t dst,
     nacks = min(nacks, RDP_MAX_OUTSTANGING);
     const size_t var = 18;
     const size_t hlen = var + nacks * 4;
+    if (hlen + dlen > RDP_MAX_SEGMENT_SIZE)
+        return 0;
+
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
     hdr->syn = 0;
     hdr->ack = 1;
