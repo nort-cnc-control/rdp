@@ -88,3 +88,5 @@ bool rdp_final_close(struct rdp_connection_s *conn);
 bool rdp_retry(struct rdp_connection_s *conn);
 
 void rdp_reset_connection(struct rdp_connection_s *conn);
+
+bool rdp_can_send(struct rdp_connection_s *conn);

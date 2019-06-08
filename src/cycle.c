@@ -117,7 +117,6 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
             return false;
         }
         size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
-        conn->snd.una = conn->snd.nxt;
 
         conn->out_data_length = len;
         conn->send(conn, conn->outbuf, len);
@@ -219,7 +218,7 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
         conn->snd.una = 0;
     else if (conn->snd.una != 0)
         return false;
-    
+
     conn->rcv.cur = seq;
     switch (conn->state)
     {
@@ -325,6 +324,8 @@ bool rdp_send(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
 {
     if (conn->state != RDP_OPEN)
         return false;
+    if (!rdp_can_send(conn))
+        return false;
     // Actual data sending
     conn->snd.dts = conn->snd.nxt;
     size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, data, dlen);
@@ -377,4 +378,11 @@ bool rdp_retry(struct rdp_connection_s *conn)
 {
     conn->send(conn, conn->outbuf, conn->out_data_length);
     return true;
+}
+
+bool rdp_can_send(struct rdp_connection_s *conn)
+{
+    if (conn->state != RDP_OPEN)
+        return false;
+    return (conn->snd.una == 0);
 }
