@@ -11,6 +11,7 @@ enum rdp_package_type_e {
     RDP_SYNACK,
     RDP_EACK,
     RDP_NUL,
+    RDP_NULACK,
     RDP_RST,
     RDP_INVALID,
 };

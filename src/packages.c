@@ -234,15 +234,13 @@ enum rdp_package_type_e rdp_package_type(const uint8_t *buf)
     {
         if (hdr->ack)
             return RDP_SYNACK;
-        else
-            return RDP_SYN;
+        return RDP_SYN;
     }
     if (hdr->ack)
     {
         if (hdr->eack)
             return RDP_EACK;
-        else
-            return RDP_ACK;
+        return RDP_ACK;
     }
     if (hdr->rst)
     {
@@ -250,6 +248,8 @@ enum rdp_package_type_e rdp_package_type(const uint8_t *buf)
     }
     if (hdr->nul)
     {
+        if (hdr->ack)
+            return RDP_NULACK;
         return RDP_NUL;
     }
     return RDP_INVALID;

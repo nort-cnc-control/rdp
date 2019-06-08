@@ -157,8 +157,6 @@ void test_connect_listen(void)
     assert(conn2.state == RDP_LISTEN);
 
     printf("C1 - send SYN\n");
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
     
     res = rdp_connect(&conn1, 2, 1);
     // 2.    SYN-SENT  <SEQ=1><SYN> --->  LISTEN
@@ -167,8 +165,6 @@ void test_connect_listen(void)
     assert(conn2.state == RDP_LISTEN);
 
     printf("C2 - receive SYN\n");
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     res = rdp_received(&conn2, outbuf1);
     // 3.    SYN-SENT <--- <SEQ=1><ACK=1><SYN,ACK> SYN-RCVD
     assert(res);
@@ -177,8 +173,6 @@ void test_connect_listen(void)
     assert(rcvd == 0);
 
     printf("C1 - SYN, ACK receive\n");
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == false);
     res = rdp_received(&conn1, outbuf2);
     // 4.    OPEN   <SEQ=2><ACK=1> --->    SYN-RCVD
     assert(res);
@@ -187,8 +181,6 @@ void test_connect_listen(void)
     assert(rcvd == 0);
 
     printf("C2 - ACK receive\n");
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == false);
     res = rdp_received(&conn2, outbuf1);
     // 5.    OPEN       OPEN
     assert(res);
@@ -196,8 +188,6 @@ void test_connect_listen(void)
     assert(conn2.state == RDP_OPEN);
     assert(rcvd == 0);
 
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
     
     printf("C1 - RST send\n");
     res = rdp_close(&conn1);
@@ -207,26 +197,12 @@ void test_connect_listen(void)
     assert(conn2.state == RDP_OPEN);
 
     printf("C2 - RST receive\n");
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     res = rdp_received(&conn2, outbuf1);
     // 7. CLOSE-WAIT    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_CLOSE_WAIT);
     assert(conn2.state == RDP_CLOSE_WAIT);
     assert(rcvd == 0);
-
-    printf("C1 - ACK receive\n");
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
-    
-    res = rdp_received(&conn1, outbuf2);
-    assert(res);
-    assert(conn1.state == RDP_CLOSED);
-    assert(conn2.state == RDP_CLOSE_WAIT);
-    assert(rcvd == 0);
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
 
     printf("C1 - final close\n");
     res = rdp_final_close(&conn1);
@@ -296,6 +272,7 @@ void test_connect_connect_1(void)
     assert(conn2.state == RDP_OPEN);
     assert(rcvd == 0);
 
+
     printf("C1 - RST send\n");
     res = rdp_close(&conn1);
     // 6. CLOSE-WAIT    OPEN
@@ -345,8 +322,6 @@ void test_connect_connect_2(void)
     assert(conn1.state == RDP_SYN_SENT);
     assert(conn2.state == RDP_CLOSED);
     assert(rcvd == 0);
-
-    assert(rdp_has_ack(&conn1) == false);
 
     printf("C2 - send SYN\n");
     res = rdp_connect(&conn2, 1, 2);
@@ -425,8 +400,6 @@ void test_connect_connect_3(void)
     assert(conn2.state == RDP_CLOSED);
     assert(rcvd == 0);
 
-    assert(rdp_has_ack(&conn1) == false);
-
     // Reinit conn1
     rdp_reset_connection(&conn1);
     printf("C1 - send SYN\n");
@@ -503,32 +476,21 @@ void test_data_send(void)
     uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     size_t dlen = sizeof(data);
 
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
     res = rdp_send(&conn1, data, dlen);
     assert(res);
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     
     res = rdp_received(&conn2, outbuf1);
     assert(res);
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf2, dlen));
     rcvd = 0;
 
     res = rdp_received(&conn1, outbuf2);
     assert(res);
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
     assert(rcvd == 0);
 
     printf("*****\n");
     close_connecions();
-
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
 }
 
 void test_data_send_packet_lost_1(void)
@@ -542,39 +504,26 @@ void test_data_send_packet_lost_1(void)
     uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     size_t dlen = sizeof(data);
 
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
     res = rdp_send(&conn1, data, dlen);
     assert(res);
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     
     // package lost
 
     res = rdp_retry(&conn1);
     assert(res);
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
 
     res = rdp_received(&conn2, outbuf1);
     assert(res);
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf2, dlen));
     rcvd = 0;
 
     res = rdp_received(&conn1, outbuf2);
     assert(res);
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
     assert(rcvd == 0);
 
     printf("*****\n");
     close_connecions();
-
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
 }
 
 void test_data_send_packet_lost_2(void)
@@ -588,48 +537,31 @@ void test_data_send_packet_lost_2(void)
     uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     size_t dlen = sizeof(data);
 
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
     res = rdp_send(&conn1, data, dlen);
     assert(res);
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     
     res = rdp_received(&conn2, outbuf1);
     assert(res);
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf2, dlen));
     rcvd = 0;
 
     // ack package lost
     // C1 resends data
-    assert(rdp_has_ack(&conn1) == false);
     res = rdp_retry(&conn1);
     assert(res);
 
     // C2 receives data again, but must ignore it, only ACK send
     res = rdp_received(&conn2, outbuf1);
     assert(res);
-    assert(rdp_has_ack(&conn1) == false);
-    assert(rdp_has_ack(&conn2) == true);
     assert(rcvd == 0);
 
     res = rdp_received(&conn1, outbuf2);
     assert(res);
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
     assert(rcvd == 0);
-
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
 
     printf("*****\n");
     close_connecions();
-
-    assert(rdp_has_ack(&conn1) == true);
-    assert(rdp_has_ack(&conn2) == true);
 }
 
 int main(void)
