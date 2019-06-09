@@ -62,7 +62,9 @@ struct rdp_connection_s {
     void (*connected)(struct rdp_connection_s *);
     void (*closed)(struct rdp_connection_s *);
     void (*data_send_completed)(struct rdp_connection_s *);
-    void (*data_received)(struct rdp_connection_s *, const uint8_t *buf, size_t len);
+    void (*data_received)(struct rdp_connection_s *, const uint8_t *, size_t);
+    void (*ack_wait_start)(struct rdp_connection_s *, uint32_t);
+    void (*ack_wait_completed)(struct rdp_connection_s *, uint32_t);
 };
 
 void rdp_init_connection(struct rdp_connection_s *conn,
@@ -71,7 +73,9 @@ void rdp_init_connection(struct rdp_connection_s *conn,
                          void (*connected)(struct rdp_connection_s *),
                          void (*closed)(struct rdp_connection_s *),
                          void (*data_send_completed)(struct rdp_connection_s *),
-                         void (*data_received)(struct rdp_connection_s *, const uint8_t *buf, size_t len));
+                         void (*data_received)(struct rdp_connection_s *, const uint8_t *buf, size_t len),
+                         void (*ack_wait_start)(struct rdp_connection_s *, uint32_t),
+                         void (*ack_wait_completed)(struct rdp_connection_s *, uint32_t));
 
 bool rdp_listen(struct rdp_connection_s *conn, uint8_t port);
 
