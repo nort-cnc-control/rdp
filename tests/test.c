@@ -8,20 +8,16 @@ uint8_t inbuf1[RDP_MAX_SEGMENT_SIZE], inbuf2[RDP_MAX_SEGMENT_SIZE];
 uint8_t outbuf1[RDP_MAX_SEGMENT_SIZE], outbuf2[RDP_MAX_SEGMENT_SIZE];
 uint8_t tmp1[RDP_MAX_SEGMENT_SIZE], tmp2[RDP_MAX_SEGMENT_SIZE];
 
-void send1(struct rdp_connection_s *conn, const uint8_t *data, size_t len)
+void send_buf(struct rdp_connection_s *conn, const uint8_t *data, size_t len)
 {
-    printf("Connection 1 sends %i bytes: ", len);
-    int i;
-    for (i = 0; i < len; i++)
+    if (conn == &conn1)
     {
-        printf("%02X", data[i]);
+        printf("Connection 1 sends %i bytes: ", len);
     }
-    printf("\n");
-}
-
-void send2(struct rdp_connection_s *conn, const uint8_t *data, size_t len)
-{
-    printf("Connection 2 sends %i bytes: ", len);
+    else
+    {
+        printf("Connection 2 sends %i bytes: ", len);        
+    }
     int i;
     for (i = 0; i < len; i++)
     {
@@ -97,11 +93,26 @@ void ack_wait_completed(struct rdp_connection_s *conn, uint32_t seq)
 
 }
 
+void close_wait_start(struct rdp_connection_s *conn)
+{
+    
+}
+
+struct rdp_cbs_s cbs = {
+    .send = send_buf,
+    .connected = connected,
+    .closed = closed,
+    .data_send_completed = data_send_completed,
+    .data_received = data_received,
+    .ack_wait_start = ack_wait_start,
+    .ack_wait_completed = ack_wait_completed,
+    .close_wait_start = close_wait_start,
+};
 
 void open_connections(void)
 {
-    rdp_init_connection(&conn1, outbuf1, inbuf1, send1, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, send2, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
 
     printf("C2 - listen\n");
     rdp_listen(&conn2, 1);
@@ -135,6 +146,7 @@ void close_connecions()
     rdp_received(&conn2, outbuf1);
 }
 
+
 void test_connect_listen(void)
 {
     printf("\nTEST: Connect : Listen\n\n");
@@ -153,8 +165,8 @@ void test_connect_listen(void)
      * 4.    OPEN    <SEQ=101><ACK=200> --->                    OPEN
      */
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, send1, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, send2, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
 
     printf("C2 - listen\n");
     res = rdp_listen(&conn2, 1);
@@ -200,15 +212,15 @@ void test_connect_listen(void)
     res = rdp_close(&conn1);
     // 6. CLOSE-WAIT    OPEN
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
     assert(conn2.state == RDP_OPEN);
 
     printf("C2 - RST,ACK send\n");
     res = rdp_received(&conn2, outbuf1);
     // 7. CLOSE-WAIT    CLOSE-WAIT
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
-    assert(conn2.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
+    assert(conn2.state == RDP_PASSIVE_CLOSE_WAIT);
     assert(rcvd == 0);
 
     printf("C1 - RST,ACK receive\n");
@@ -216,7 +228,7 @@ void test_connect_listen(void)
     // 8. CLOSED    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_CLOSED);
-    assert(conn2.state == RDP_CLOSE_WAIT);
+    assert(conn2.state == RDP_PASSIVE_CLOSE_WAIT);
     assert(rcvd == 0);
 
 
@@ -232,8 +244,8 @@ void test_connect_connect_1(void)
 {
     printf("\nTEST: Connect : Connect 1\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, send1, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, send2, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);
@@ -286,15 +298,15 @@ void test_connect_connect_1(void)
     res = rdp_close(&conn1);
     // 6. CLOSE-WAIT    OPEN
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
     assert(conn2.state == RDP_OPEN);
 
     printf("C2 - RST send\n");
     res = rdp_close(&conn2);
     // 7. CLOSE-WAIT    CLOSE-WAIT
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
-    assert(conn2.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
+    assert(conn2.state == RDP_ACTIVE_CLOSE_WAIT);
     assert(rcvd == 0);
 
     memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
@@ -303,7 +315,7 @@ void test_connect_connect_1(void)
     printf("C2 - RST receive\n");
     res = rdp_received(&conn2, tmp1);
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
     assert(conn2.state == RDP_CLOSED);
     assert(rcvd == 0);
 
@@ -321,8 +333,8 @@ void test_connect_connect_2(void)
 {
     printf("\nTEST: Connect : Connect 2\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, send1, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, send2, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);
@@ -368,15 +380,15 @@ void test_connect_connect_2(void)
     res = rdp_close(&conn1);
     // 6. CLOSE-WAIT    OPEN
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
     assert(conn2.state == RDP_OPEN);
 
     printf("C2 - RST,ACK send\n");
     res = rdp_received(&conn2, outbuf1);
     // 7. CLOSE-WAIT    CLOSE-WAIT
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
-    assert(conn2.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
+    assert(conn2.state == RDP_PASSIVE_CLOSE_WAIT);
     assert(rcvd == 0);
 
     printf("C1 - RST,ACK receive\n");
@@ -384,7 +396,7 @@ void test_connect_connect_2(void)
     // 8. CLOSED    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_CLOSED);
-    assert(conn2.state == RDP_CLOSE_WAIT);
+    assert(conn2.state == RDP_PASSIVE_CLOSE_WAIT);
     assert(rcvd == 0);
 
 
@@ -400,8 +412,8 @@ void test_connect_connect_3(void)
 {
     printf("\nTEST: Connect : Connect 3\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, send1, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, send2, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);
@@ -455,15 +467,15 @@ void test_connect_connect_3(void)
     res = rdp_close(&conn1);
     // 6. CLOSE-WAIT    OPEN
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
     assert(conn2.state == RDP_OPEN);
 
     printf("C2 - RST,ACK send\n");
     res = rdp_received(&conn2, outbuf1);
     // 7. CLOSE-WAIT    CLOSE-WAIT
     assert(res);
-    assert(conn1.state == RDP_CLOSE_WAIT);
-    assert(conn2.state == RDP_CLOSE_WAIT);
+    assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
+    assert(conn2.state == RDP_PASSIVE_CLOSE_WAIT);
     assert(rcvd == 0);
 
     printf("C1 - RST,ACK receive\n");
@@ -471,7 +483,7 @@ void test_connect_connect_3(void)
     // 8. CLOSED    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_CLOSED);
-    assert(conn2.state == RDP_CLOSE_WAIT);
+    assert(conn2.state == RDP_PASSIVE_CLOSE_WAIT);
     assert(rcvd == 0);
 
     printf("C2 - ACK receive\n");

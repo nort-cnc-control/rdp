@@ -4,11 +4,25 @@
 
 enum rdp_state_e {
     RDP_CLOSED = 0,
-    RDP_LISTEN,
-    RDP_SYN_SENT,
-    RDP_SYN_RCVD,
-    RDP_OPEN,
-    RDP_CLOSE_WAIT,
+    RDP_LISTEN = 1,
+    RDP_SYN_SENT = 2,
+    RDP_SYN_RCVD = 3,
+    RDP_OPEN = 4,
+    RDP_ACTIVE_CLOSE_WAIT = 5,
+    RDP_PASSIVE_CLOSE_WAIT = 6,
+};
+
+struct rdp_connection_s;
+
+struct rdp_cbs_s {
+    void (*send)(struct rdp_connection_s *, const uint8_t *, size_t);
+    void (*connected)(struct rdp_connection_s *);
+    void (*closed)(struct rdp_connection_s *);
+    void (*data_send_completed)(struct rdp_connection_s *);
+    void (*data_received)(struct rdp_connection_s *, const uint8_t *, size_t);
+    void (*ack_wait_start)(struct rdp_connection_s *, uint32_t);
+    void (*ack_wait_completed)(struct rdp_connection_s *, uint32_t);
+    void (*close_wait_start)(struct rdp_connection_s *);
 };
 
 struct rdp_connection_s {
@@ -58,24 +72,12 @@ struct rdp_connection_s {
     size_t out_data_length;
     uint8_t local_port;
     uint8_t remote_port;
-    void (*send)(struct rdp_connection_s *, const uint8_t *, size_t);
-    void (*connected)(struct rdp_connection_s *);
-    void (*closed)(struct rdp_connection_s *);
-    void (*data_send_completed)(struct rdp_connection_s *);
-    void (*data_received)(struct rdp_connection_s *, const uint8_t *, size_t);
-    void (*ack_wait_start)(struct rdp_connection_s *, uint32_t);
-    void (*ack_wait_completed)(struct rdp_connection_s *, uint32_t);
+    struct rdp_cbs_s *cbs;
 };
 
 void rdp_init_connection(struct rdp_connection_s *conn,
                          uint8_t *outbuf, uint8_t *recvbuf,
-                         void (*send)(struct rdp_connection_s *, const uint8_t *, size_t),
-                         void (*connected)(struct rdp_connection_s *),
-                         void (*closed)(struct rdp_connection_s *),
-                         void (*data_send_completed)(struct rdp_connection_s *),
-                         void (*data_received)(struct rdp_connection_s *, const uint8_t *buf, size_t len),
-                         void (*ack_wait_start)(struct rdp_connection_s *, uint32_t),
-                         void (*ack_wait_completed)(struct rdp_connection_s *, uint32_t));
+                         struct rdp_cbs_s *cbs);
 
 bool rdp_listen(struct rdp_connection_s *conn, uint8_t port);
 

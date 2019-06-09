@@ -38,24 +38,28 @@ With modifications:
             +--------------->|    OPEN    |<--------------+               |
                              |            |                               |
                              +------------+                               |
-                       rcv RST     |   Close request                      |
-                    -------------- |  ---------------                     |
-                    send RST,ACK   |     snd RST                          |
-                                   V                                      |
-                             +------------+                               |
-                             |            |      delay                    |
-                             |            |----------------------->-------+
-                             | CLOSE-WAIT |                               |
-                             |            |                               |
-                             |            |                               |
-                             +------------+                               |
-                                   |                                      |
-                                   |                                      |
-                                   |                                      |
-                                   |  rcv RST,ACK    rcv ACK     rcv RST  |
-                                   |  ----------- or ------- or  -------  |
-                                   |    snd ACK        xxx        xxx     |
-                                   +--------------------------------------+
+            rcv RST         /              \   Close request              |
+        --------------     /                \ ---------------             |
+        send RST,ACK      /                  \    snd RST                 |
+                         V                    V                           |
+                  +-------------+       +------------+                    |
+        +---------|             |       |            |                    |
+rcv RST |         |  PASSIVE    |       |   ACTIVE   |   rcv RST,ACK      |
+------- |         | CLOSE WAIT  |       | CLOSE-WAIT |   ----------       |
+RST,ACK |         |             |       |            |     snd ACK        |
+        +-------->|             |       |            |------------------->|
+                  +-------------+       |            |                    |
+                    |       |           |            |                    |
+                    |       |           |            |    rcv RST         |
+            rcv ACK |       |           |            |   ---------        |
+           ---------|       |           |            |      xxx           |
+              xxx   |       |           |            |------------------->|
+                    |       |           +------------+                    |
+                    |       | delay           |                           |
+                    |       |                 | delay                     |
+                    |       V                 V                           |
+                    +-----------------------------------------------------+
+                                   
 
 
                        RDP Connection State Diagram
@@ -80,8 +84,8 @@ static bool rdp_send_syn(struct rdp_connection_s *conn, uint8_t src_port, uint8_
     conn->snd.nxt++;
     
     conn->out_data_length = len; 
-    conn->send(conn, conn->outbuf, len);
-    conn->ack_wait_start(conn, conn->snd.una);
+    conn->cbs->send(conn, conn->outbuf, len);
+    conn->cbs->ack_wait_start(conn, conn->snd.una);
     return true;
 }
 
@@ -108,8 +112,8 @@ static bool rdp_syn_received(struct rdp_connection_s *conn, uint8_t src_port, ui
         conn->snd.nxt++;
         
         conn->out_data_length = len;
-        conn->send(conn, conn->outbuf, len);
-        conn->ack_wait_start(conn, conn->snd.una);
+        conn->cbs->send(conn, conn->outbuf, len);
+        conn->cbs->ack_wait_start(conn, conn->snd.una);
         return true;
     }
     return false;
@@ -124,7 +128,7 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         if (conn->snd.una == ack)
         {
             conn->snd.una = conn->snd.iss;
-            conn->ack_wait_completed(conn, ack);
+            conn->cbs->ack_wait_completed(conn, ack);
         }
         else if (conn->snd.una != conn->snd.iss)
         {
@@ -133,8 +137,8 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
 
         conn->out_data_length = len;
-        conn->send(conn, conn->outbuf, len);
-        conn->connected(conn);
+        conn->cbs->send(conn, conn->outbuf, len);
+        conn->cbs->connected(conn);
         return true;
     }
     else if (conn->state == RDP_SYN_RCVD)
@@ -144,7 +148,7 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         if (conn->snd.una == ack)
         {
             conn->snd.una = conn->snd.iss;
-            conn->ack_wait_completed(conn, ack);
+            conn->cbs->ack_wait_completed(conn, ack);
         }
         else if (conn->snd.una != conn->snd.iss)
         {
@@ -152,7 +156,7 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         }
 
         conn->rcv.cur = seq;
-        conn->connected(conn);
+        conn->cbs->connected(conn);
         return true;
     }
     return false;
@@ -160,21 +164,32 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
 
 static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
 {
+    size_t len;
     switch(conn->state)
     {
         case RDP_OPEN:
             conn->rcv.cur = seq;
-            conn->state = RDP_CLOSE_WAIT;
-            size_t len = rdp_build_rstack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
+            conn->state = RDP_PASSIVE_CLOSE_WAIT;
+            len = rdp_build_rstack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
             conn->snd.una = conn->snd.nxt;
             conn->snd.nxt++;
             conn->out_data_length = len;
-            conn->send(conn, conn->outbuf, len);
-            conn->ack_wait_start(conn, conn->snd.una);
+            conn->cbs->send(conn, conn->outbuf, len);
+            conn->cbs->ack_wait_start(conn, conn->snd.una);
+            conn->cbs->close_wait_start(conn);
             return true;
-        case RDP_CLOSE_WAIT:
+        case RDP_ACTIVE_CLOSE_WAIT:
             conn->state = RDP_CLOSED;
-            conn->closed(conn);
+            conn->cbs->closed(conn);
+            return true;
+        case RDP_PASSIVE_CLOSE_WAIT:
+            conn->cbs->ack_wait_completed(conn, conn->snd.una);
+            len = rdp_build_rstack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
+            conn->snd.una = conn->snd.nxt;
+            conn->snd.nxt++;
+            conn->out_data_length = len;
+            conn->cbs->send(conn, conn->outbuf, len);
+            conn->cbs->ack_wait_start(conn, conn->snd.una);
             return true;
     }
     return false;
@@ -185,21 +200,21 @@ static bool rdp_rstack_received(struct rdp_connection_s *conn, uint32_t seq, uin
     if (conn->snd.una == ack)
     {
         conn->snd.una = conn->snd.iss;
-        conn->ack_wait_completed(conn, ack);
+        conn->cbs->ack_wait_completed(conn, ack);
     }
     else if (conn->snd.una != conn->snd.iss)
     {
         return false;
     }
     conn->rcv.cur = seq;
-    if (conn->state == RDP_CLOSE_WAIT)
+    if (conn->state == RDP_ACTIVE_CLOSE_WAIT)
     {
         conn->state = RDP_CLOSED;
         size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
 
         conn->out_data_length = len;
-        conn->send(conn, conn->outbuf, len);
-        conn->closed(conn);
+        conn->cbs->send(conn, conn->outbuf, len);
+        conn->cbs->closed(conn);
         return true;
     }
     return false;
@@ -213,7 +228,7 @@ static bool rdp_nul_received(struct rdp_connection_s *conn, uint32_t seq)
         size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
         
         conn->out_data_length = len;
-        conn->send(conn, conn->outbuf, len);
+        conn->cbs->send(conn, conn->outbuf, len);
         return true;
     }
     return false;
@@ -227,7 +242,7 @@ static bool rdp_nulack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         if (conn->snd.una == ack)
         {
             conn->snd.una = conn->snd.iss;
-            conn->ack_wait_completed(conn, ack);
+            conn->cbs->ack_wait_completed(conn, ack);
         }
         else if (conn->snd.una != conn->snd.iss)
         {
@@ -237,7 +252,7 @@ static bool rdp_nulack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
         
         conn->out_data_length = len;
-        conn->send(conn, conn->outbuf, len);
+        conn->cbs->send(conn, conn->outbuf, len);
         return true;
     }
     return false;
@@ -248,7 +263,7 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
     if (conn->snd.una == ack)
     {
         conn->snd.una = conn->snd.iss;
-        conn->ack_wait_completed(conn, ack);
+        conn->cbs->ack_wait_completed(conn, ack);
     }
     else if (conn->snd.una != conn->snd.iss)
     {
@@ -260,13 +275,13 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
     {
         case RDP_SYN_RCVD:
             conn->state = RDP_OPEN;
-            conn->connected(conn);
+            conn->cbs->connected(conn);
             return true;
         case RDP_OPEN:
             return true;
-        case RDP_CLOSE_WAIT:
+        case RDP_PASSIVE_CLOSE_WAIT:
             conn->state = RDP_CLOSED;
-            conn->closed(conn);
+            conn->cbs->closed(conn);
             return true;
         default:
             return false;
@@ -278,7 +293,7 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
     if (conn->snd.una == ack)
     {
         conn->snd.una = conn->snd.iss;
-        conn->ack_wait_completed(conn, ack);
+        conn->cbs->ack_wait_completed(conn, ack);
     }
     else if (conn->snd.una != conn->snd.iss)
     {
@@ -293,12 +308,12 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
             if (seq > conn->rcv.dts)
             {
                 memcpy(conn->recvbuf, data, dlen);
-                conn->data_received(conn, conn->recvbuf, dlen);
+                conn->cbs->data_received(conn, conn->recvbuf, dlen);
             }
             conn->rcv.dts = seq;
             size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
             conn->out_data_length = len;
-            conn->send(conn, conn->outbuf, len);
+            conn->cbs->send(conn, conn->outbuf, len);
             return true;
         default:
             return false;
@@ -325,26 +340,14 @@ static bool rdp_ack_received(struct rdp_connection_s *conn, const uint8_t *inbuf
 
 void rdp_init_connection(struct rdp_connection_s *conn,
                          uint8_t *outbuf, uint8_t *recvbuf,
-                         void (*send)(struct rdp_connection_s *, const uint8_t *, size_t),
-                         void (*connected)(struct rdp_connection_s *),
-                         void (*closed)(struct rdp_connection_s *),
-                         void (*data_send_completed)(struct rdp_connection_s *),
-                         void (*data_received)(struct rdp_connection_s *, const uint8_t *, size_t),
-                         void (*ack_wait_start)(struct rdp_connection_s *, uint32_t),
-                         void (*ack_wait_completed)(struct rdp_connection_s *, uint32_t))
+                         struct rdp_cbs_s *cbs)
 {
     rdp_reset_connection(conn);
     conn->snd.iss = 1;
     conn->outbuf = outbuf;
     conn->recvbuf = recvbuf;
     conn->recvlen = 0;
-    conn->send = send;
-    conn->closed = closed;
-    conn->connected = connected;
-    conn->data_received = data_received;
-    conn->data_send_completed = data_send_completed;
-    conn->ack_wait_start = ack_wait_start;
-    conn->ack_wait_completed = ack_wait_completed;
+    conn->cbs = cbs;
 }
 
 void rdp_reset_connection(struct rdp_connection_s *conn)
@@ -375,13 +378,14 @@ bool rdp_close(struct rdp_connection_s *conn)
 {
     if (conn->state != RDP_OPEN)
         return false;
-    conn->state = RDP_CLOSE_WAIT;
+    conn->state = RDP_ACTIVE_CLOSE_WAIT;
     size_t len = rdb_build_rst_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
     conn->snd.una = conn->snd.nxt;
     conn->snd.nxt++;
     conn->out_data_length = len;
-    conn->send(conn, conn->outbuf, len);
-    conn->ack_wait_start(conn, conn->snd.una);
+    conn->cbs->send(conn, conn->outbuf, len);
+    conn->cbs->ack_wait_start(conn, conn->snd.una);
+    conn->cbs->close_wait_start(conn);
     return true;
 }
 
@@ -389,10 +393,11 @@ bool rdp_final_close(struct rdp_connection_s *conn)
 {
     if (conn->state == RDP_CLOSED)
         return true;
-    if (conn->state != RDP_CLOSE_WAIT)
+    if (conn->state != RDP_ACTIVE_CLOSE_WAIT &&
+        conn->state != RDP_PASSIVE_CLOSE_WAIT)
         return false;
     conn->state = RDP_CLOSED;
-    conn->closed(conn);
+    conn->cbs->closed(conn);
     return true;
 }
 
@@ -408,8 +413,8 @@ bool rdp_send(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
     conn->snd.una = conn->snd.nxt;
     conn->snd.nxt++;
     conn->out_data_length = len;
-    conn->send(conn, conn->outbuf, len);
-    conn->ack_wait_start(conn, conn->snd.una);
+    conn->cbs->send(conn, conn->outbuf, len);
+    conn->cbs->ack_wait_start(conn, conn->snd.una);
     return true;
 }
 
@@ -458,7 +463,7 @@ bool rdp_received(struct rdp_connection_s *conn, const uint8_t *inbuf)
 
 bool rdp_retry(struct rdp_connection_s *conn)
 {
-    conn->send(conn, conn->outbuf, conn->out_data_length);
+    conn->cbs->send(conn, conn->outbuf, conn->out_data_length);
     return true;
 }
 

@@ -20,15 +20,15 @@ size_t lenrecv;
 
 struct timeval tv1, tv2, dtv;
 struct timezone tz;
-bool waitack = 0;
-int acktimeout;
-
+bool waitack = false;
+bool waitclose = false;
 
 int cnctd = 0;
 
 void send_rdp(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
 {
-    printf("Sending bytes to server\n");
+    printf("Sending %i bytes\n", dlen);
+    printf("state = %i\n", conn->state);
     if (rand() > RAND_MAX / 5)
         sendto(fd, data, dlen, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr));
     else
@@ -70,6 +70,24 @@ void ack_wait_completed(struct rdp_connection_s *conn, uint32_t seq)
     printf("Waiting ack %i completed\n", seq);
 }
 
+void close_wait_start(struct rdp_connection_s *conn)
+{
+    waitclose = true;
+    printf("Waiting for connection close\n");
+}
+
+struct rdp_cbs_s cbs = {
+    .send = send_rdp,
+    .connected = connected,
+    .closed = closed,
+    .data_send_completed = data_send_completed,
+    .data_received = data_received,
+    .ack_wait_start = ack_wait_start,
+    .ack_wait_completed = ack_wait_completed,
+    .close_wait_start = close_wait_start,
+};
+
+
 int main(void)
 {
     int n;
@@ -92,7 +110,7 @@ int main(void)
 
     sendto(fd, "xxx", 3, MSG_CONFIRM, (struct sockaddr *) &servaddr, sizeof(servaddr));
 
-    rdp_init_connection(&conn, outbuffer, received, send_rdp, connected, closed, data_send_completed, data_received, ack_wait_start, ack_wait_completed);
+    rdp_init_connection(&conn, outbuffer, received, &cbs);
     rdp_connect(&conn, 1, 1);
 
     while (conn.state != RDP_CLOSED)
@@ -115,7 +133,7 @@ int main(void)
 
                 int tmt = dtv.tv_sec;
 
-                if (tmt > acktimeout)
+                if (tmt > RDP_RESENT_TIMEOUT)
                 {
                     printf("RETRY\n");
                     rdp_retry(&conn);

@@ -9,3 +9,10 @@
 
 // Max out of order packets. Only 0 is supported
 #define RDP_MAX_OUTSTANGING 0
+
+// Close timeout
+#define RDP_CLOSE_TIMEOUT 6
+
+// Resend timeout
+#define RDP_RESENT_TIMEOUT 1
+
