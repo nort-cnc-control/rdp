@@ -129,7 +129,6 @@ int main(void)
         if (lenrecv > 0)
         {
             rdp_close(&conn);
-            rdp_final_close(&conn);
             lenrecv = 0;
         }
     }

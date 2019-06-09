@@ -134,6 +134,32 @@ size_t rdp_build_ack_package(uint8_t *buf, uint8_t src, uint8_t dst,
     return hlen + dlen;
 }
 
+size_t rdp_build_rstack_package(uint8_t *buf, uint8_t src, uint8_t dst,
+                                uint32_t cur_seq, uint32_t rcv_seq)
+{
+    const size_t var = 18;
+    const size_t hlen = var;
+    
+    struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
+    hdr->syn = 0;
+    hdr->ack = 1;
+    hdr->eack = 0;
+    hdr->rst = 1;
+    hdr->nul = 0;
+    hdr->ver = RDP_VERSION;
+    hdr->header_length = hlen / 2;
+    hdr->source_port = src;
+    hdr->destination_port = dst;
+    hdr->data_length = 0;
+
+    hdr->sequence_number = cur_seq;
+    hdr->acknowledgement_number = rcv_seq;
+
+    fill_crc(buf);
+    return hlen;
+}
+
+
 size_t rdb_build_eack_package(uint8_t *buf, uint8_t src, uint8_t dst,
                               uint32_t cur_seq, uint32_t rcv_seq,
                               uint32_t *acks, size_t nacks,
@@ -175,7 +201,7 @@ size_t rdb_build_eack_package(uint8_t *buf, uint8_t src, uint8_t dst,
 }
 
 size_t rdb_build_rst_package(uint8_t *buf, uint8_t src, uint8_t dst,
-                             uint32_t cur_seq)
+                             uint32_t cur_seq, uint32_t rcv_seq)
 {
     const size_t var = 18;
     const size_t hlen = var;
@@ -191,7 +217,7 @@ size_t rdb_build_rst_package(uint8_t *buf, uint8_t src, uint8_t dst,
     hdr->destination_port = dst;
     hdr->data_length = 0;
     hdr->sequence_number = cur_seq;
-    hdr->acknowledgement_number = 0;
+    hdr->acknowledgement_number = rcv_seq;
 
     fill_crc(buf);
     return hlen;
@@ -230,17 +256,21 @@ void rdb_package_source_destination(const uint8_t *buf, uint8_t *src, uint8_t *d
 enum rdp_package_type_e rdp_package_type(const uint8_t *buf)
 {
     const struct rdp_header_s *hdr = (const struct rdp_header_s *)buf;
-    if (hdr->syn)
-    {
-        if (hdr->ack)
-            return RDP_SYNACK;
-        return RDP_SYN;
-    }
     if (hdr->ack)
     {
         if (hdr->eack)
             return RDP_EACK;
+        if (hdr->rst)
+            return RDP_RSTACK;
+        if (hdr->nul)
+            return RDP_NULACK;
+        if (hdr->syn)
+            return RDP_SYNACK;
         return RDP_ACK;
+    }
+    if (hdr->syn)
+    {
+        return RDP_SYN;
     }
     if (hdr->rst)
     {
@@ -248,8 +278,6 @@ enum rdp_package_type_e rdp_package_type(const uint8_t *buf)
     }
     if (hdr->nul)
     {
-        if (hdr->ack)
-            return RDP_NULACK;
         return RDP_NUL;
     }
     return RDP_INVALID;

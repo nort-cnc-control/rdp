@@ -13,6 +13,7 @@ enum rdp_package_type_e {
     RDP_NUL,
     RDP_NULACK,
     RDP_RST,
+    RDP_RSTACK,
     RDP_INVALID,
 };
 
@@ -51,9 +52,12 @@ size_t rdb_build_eack_package(uint8_t *buf, uint8_t src, uint8_t dst,
                               const uint8_t *data, size_t dlen);
 
 size_t rdb_build_rst_package(uint8_t *buf, uint8_t src, uint8_t dst,
-                             uint32_t cur_seq);
+                             uint32_t cur_seq, uint32_t rcv_seq);
 
 size_t rdb_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
                              uint32_t cur_seq);
+
+size_t rdp_build_rstack_package(uint8_t *buf, uint8_t src, uint8_t dst,
+                                uint32_t cur_seq, uint32_t rcv_seq);
 
 enum rdp_package_type_e rdp_package_type(const uint8_t *buf);

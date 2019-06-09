@@ -144,9 +144,8 @@ int main(void)
             rdp_send(&conn, hello, sizeof(hello) - 1);
         }
 
-        if (conn.state == RDP_CLOSE_WAIT)
+        if (conn.state == RDP_CLOSED)
         {
-            rdp_final_close(&conn);
             rdp_listen(&conn, 1);
         }
     }

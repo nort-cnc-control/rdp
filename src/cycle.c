@@ -4,48 +4,58 @@
 
 /*
 
-https://tools.ietf.org/html/rfc908
+Based on https://tools.ietf.org/html/rfc908
 
 With modifications:
 
 1. "rcv ACK or rcv SYN,ACK" instead of "rcv ACK" in SYN-RCVD state
+2. Connection finishing changed
 
                              +------------+
-              Passive Open   |            |<-------------------------+
-            +----------------|   CLOSED   |                          |
-            |   Request      |            |---------------+          |
-            V                +------------+               |          |
-     +------------+                                       |          |
-     |            |                                       |          |
-     |   LISTEN   |                                       |          |
-     |            |                                       |          |
-     +------------+                                       |          |
-            |                                   Active    |          |
-            |  rcv SYN                       Open Request |          |
-            | -----------                    ------------ |          |
-            | snd SYN,ACK                      snd SYN    |          |
-            V                   rcv SYN                   V          |
-     +------------+          -----------           +------------+    |
-     |            |          snd SYN,ACK           |            |    |
-     |  SYN-RCVD  |<-------------------------------|  SYN-SENT  |    |
-     |            |                                |            |    |
-     +------------+                                +------------+    |
-            |  rcv ACK or rcv SYN,ACK        rcv SYN,ACK  |          |
-            | ----------                    ------------- |          |
-            |    xxx         +------------+    snd ACK    |          |
-            |                |            |               |          |
-            +--------------->|    OPEN    |<--------------+          |
-                             |            |                          |
-                             +------------+                          |
-                         rcv RST   |   Close request                 |
-                       ----------- |  ---------------                |
-                           xxx     |     snd RST                     |
-                                   V                                 |
-                             +------------+                          |
-                             |            |                          |
-                             | CLOSE-WAIT |--------------------------+
-                             |            |  After a Delay
-                             +------------+
+              Passive Open   |            |<------------------------------+
+            +----------------|   CLOSED   |                               |
+            |   Request      |            |---------------+               |
+            V                +------------+               |               |
+     +------------+                                       |               |
+     |            |                                       |               |
+     |   LISTEN   |                                       |               |
+     |            |                                       |               |
+     +------------+                                       |               |
+            |                                   Active    |               |
+            |  rcv SYN                       Open Request |               |
+            | -----------                    ------------ |               |
+            | snd SYN,ACK                      snd SYN    |               |
+            V                   rcv SYN                   V               |
+     +------------+          -----------           +------------+         |
+     |            |          snd SYN,ACK           |            |         |
+     |  SYN-RCVD  |<-------------------------------|  SYN-SENT  |         |
+     |            |                                |            |         |
+     +------------+                                +------------+         |
+            |  rcv ACK or rcv SYN,ACK        rcv SYN,ACK  |               |
+            | ----------                    ------------- |               |
+            |    xxx         +------------+    snd ACK    |               |
+            |                |            |               |               |
+            +--------------->|    OPEN    |<--------------+               |
+                             |            |                               |
+                             +------------+                               |
+                       rcv RST     |   Close request                      |
+                    -------------- |  ---------------                     |
+                    send RST,ACK   |     snd RST                          |
+                                   V                                      |
+                             +------------+                               |
+                             |            |      delay                    |
+                             |            |----------------------->-------+
+                             | CLOSE-WAIT |                               |
+                             |            |                               |
+                             |            |                               |
+                             +------------+                               |
+                                   |                                      |
+                                   |                                      |
+                                   |                                      |
+                                   |  rcv RST,ACK    rcv ACK     rcv RST  |
+                                   |  ----------- or ------- or  -------  |
+                                   |    snd ACK        xxx        xxx     |
+                                   +--------------------------------------+
 
 
                        RDP Connection State Diagram
@@ -150,10 +160,46 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
 
 static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
 {
-    if (conn->state == RDP_OPEN)
+    switch(conn->state)
     {
-        conn->rcv.cur = seq;
-        conn->state = RDP_CLOSE_WAIT;
+        case RDP_OPEN:
+            conn->rcv.cur = seq;
+            conn->state = RDP_CLOSE_WAIT;
+            size_t len = rdp_build_rstack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
+            conn->snd.una = conn->snd.nxt;
+            conn->snd.nxt++;
+            conn->out_data_length = len;
+            conn->send(conn, conn->outbuf, len);
+            conn->ack_wait_start(conn, conn->snd.una);
+            return true;
+        case RDP_CLOSE_WAIT:
+            conn->state = RDP_CLOSED;
+            conn->closed(conn);
+            return true;
+    }
+    return false;
+}
+
+static bool rdp_rstack_received(struct rdp_connection_s *conn, uint32_t seq, uint32_t ack)
+{
+    if (conn->snd.una == ack)
+    {
+        conn->snd.una = conn->snd.iss;
+        conn->ack_wait_completed(conn, ack);
+    }
+    else if (conn->snd.una != conn->snd.iss)
+    {
+        return false;
+    }
+    conn->rcv.cur = seq;
+    if (conn->state == RDP_CLOSE_WAIT)
+    {
+        conn->state = RDP_CLOSED;
+        size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
+
+        conn->out_data_length = len;
+        conn->send(conn, conn->outbuf, len);
+        conn->closed(conn);
         return true;
     }
     return false;
@@ -217,6 +263,10 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
             conn->connected(conn);
             return true;
         case RDP_OPEN:
+            return true;
+        case RDP_CLOSE_WAIT:
+            conn->state = RDP_CLOSED;
+            conn->closed(conn);
             return true;
         default:
             return false;
@@ -326,9 +376,12 @@ bool rdp_close(struct rdp_connection_s *conn)
     if (conn->state != RDP_OPEN)
         return false;
     conn->state = RDP_CLOSE_WAIT;
-    size_t len = rdb_build_rst_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt);
+    size_t len = rdb_build_rst_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
+    conn->snd.una = conn->snd.nxt;
+    conn->snd.nxt++;
     conn->out_data_length = len;
     conn->send(conn, conn->outbuf, len);
+    conn->ack_wait_start(conn, conn->snd.una);
     return true;
 }
 
@@ -387,6 +440,10 @@ bool rdp_received(struct rdp_connection_s *conn, const uint8_t *inbuf)
             if (hdr->source_port != conn->remote_port || hdr->destination_port != conn->local_port)
                 return false;
             return rdp_rst_received(conn, hdr->sequence_number);
+        case RDP_RSTACK:
+            if (hdr->source_port != conn->remote_port || hdr->destination_port != conn->local_port)
+                return false;
+            return rdp_rstack_received(conn, hdr->sequence_number, hdr->acknowledgement_number);
         case RDP_EACK:
             if (hdr->source_port != conn->remote_port || hdr->destination_port != conn->local_port)
                 return false;
