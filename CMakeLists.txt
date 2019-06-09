@@ -1,5 +1,8 @@
-project(rdpos)
-cmake_minimum_required(VERSION 3.13)
+#project(rdpos)
+#cmake_minimum_required(VERSION 3.13)
 
 add_subdirectory(src)
-add_subdirectory(tests)
+
+if (NOT DEFINED NO_TESTS)
+    add_subdirectory(tests)
+endif ()
