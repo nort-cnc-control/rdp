@@ -1,7 +1,7 @@
 #include <rdpos.h>
 #include <packages.h>
 #include <string.h>
-#include <crc/crc32.h>
+#include <crc32.h>
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
