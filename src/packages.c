@@ -1,6 +1,7 @@
 #include <rdpos.h>
 #include <packages.h>
 #include <string.h>
+#include <crc/crc32.h>
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
@@ -16,17 +17,17 @@ static size_t padded_len(size_t len)
     return len;
 }
 
-static void add_padding(uint8_t *buf, size_t len)
+static size_t add_padding(uint8_t *buf, size_t len)
 {
     size_t plen = padded_len(len);
     int i;
     for (i = len; i < plen; i++)
         buf[i] = 0;
+    return plen;
 }
 
 static void fill_crc(uint8_t *buf)
 {
-    const int crc_pos = 7;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
     size_t hlen = (hdr->header_length)*2;
     size_t dlen = hdr->data_length;
@@ -34,9 +35,9 @@ static void fill_crc(uint8_t *buf)
     
     uint32_t crc = 0;
     hdr->checksum = crc;
-
-    add_padding(buf, len);
-    // TODO: implement crc
+    size_t plen = add_padding(buf, len);
+    crc = crc32(0, buf, plen);
+    hdr->checksum = crc;
 }
 
 size_t rdp_build_syn_package(uint8_t *buf, uint8_t src, uint8_t dst,
