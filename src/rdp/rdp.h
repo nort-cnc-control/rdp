@@ -8,4 +8,4 @@
 #include <defs.h>
 #include <config.h>
 #include <cycle.h>
-#include <package_public.h>
+#include <packages_public.h>

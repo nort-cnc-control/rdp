@@ -16,9 +16,17 @@ if (BUILD_TESTING)
 endif ()
 
 install(TARGETS rdpos ARCHIVE DESTINATION lib)
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/
-	DESTINATION include/rdpos
-	FILES_MATCHING PATTERN "*.h")
+
+set(RT ${CMAKE_SOURCE_DIR}/src/)
+
+install(FILES   ${RT}/rdpos.h
+                ${RT}/rdp/rdp.h
+                ${RT}/rdp/packages.h
+                ${RT}/rdp/defs.h
+                ${RT}/rdp/cycle.h
+                ${RT}/rdp/config.h
+                ${RT}/rdp/packages_public.h 
+	DESTINATION include/rdpos)
 
 install(FILES ${CMAKE_BINARY_DIR}/rdpos.pc
 	DESTINATION lib/pkgconfig)

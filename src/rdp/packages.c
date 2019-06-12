@@ -1,5 +1,6 @@
 #include <rdp.h>
 #include <packages.h>
+#include <packages_public.h>
 #include <string.h>
 #include <crc32.h>
 
