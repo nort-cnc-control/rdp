@@ -121,43 +121,45 @@ static bool rdp_syn_received(struct rdp_connection_s *conn, uint8_t src_port, ui
 
 static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uint32_t ack)
 {
-    if (conn->state == RDP_SYN_SENT)
+    switch (conn->state)
     {
-        conn->state = RDP_OPEN;
-        conn->rcv.cur = seq;
-        if (conn->snd.una == ack)
-        {
-            conn->snd.una = conn->snd.iss;
-            conn->cbs->ack_wait_completed(conn, ack);
-        }
-        else if (conn->snd.una != conn->snd.iss)
-        {
+        case RDP_OPEN:
+        case RDP_SYN_SENT:
+            conn->state = RDP_OPEN;
+            conn->rcv.cur = seq;
+            if (conn->snd.una == ack)
+            {
+                conn->snd.una = conn->snd.iss;
+                conn->cbs->ack_wait_completed(conn, ack);
+            }
+            else if (conn->snd.una != conn->snd.iss)
+            {
+                return false;
+            }
+            size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
+
+            conn->out_data_length = len;
+            conn->cbs->send(conn, conn->outbuf, len);
+            conn->cbs->connected(conn);
+            return true;
+        case RDP_SYN_RCVD:
+            conn->state = RDP_OPEN;
+
+            if (conn->snd.una == ack)
+            {
+                conn->snd.una = conn->snd.iss;
+                conn->cbs->ack_wait_completed(conn, ack);
+            }
+            else if (conn->snd.una != conn->snd.iss)
+            {
+                return false;
+            }
+
+            conn->rcv.cur = seq;
+            conn->cbs->connected(conn);
+            return true;
+        default:
             return false;
-        }
-        size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
-
-        conn->out_data_length = len;
-        conn->cbs->send(conn, conn->outbuf, len);
-        conn->cbs->connected(conn);
-        return true;
-    }
-    else if (conn->state == RDP_SYN_RCVD)
-    {
-        conn->state = RDP_OPEN;
-
-        if (conn->snd.una == ack)
-        {
-            conn->snd.una = conn->snd.iss;
-            conn->cbs->ack_wait_completed(conn, ack);
-        }
-        else if (conn->snd.una != conn->snd.iss)
-        {
-            return false;
-        }
-
-        conn->rcv.cur = seq;
-        conn->cbs->connected(conn);
-        return true;
     }
     return false;
 }

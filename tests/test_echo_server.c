@@ -177,6 +177,7 @@ int main(void)
             continue;
         }
 
+        printf("state = %i\n", conn.state);
         bool res = rdp_received(&conn, inbuffer);
         printf("Res = %i\n", res);
         if (cnctd)
