@@ -4,7 +4,7 @@ libdir=${prefix}/lib
 includedir=${prefix}/include/rdpos
 
 Name: librdpos
-Description: Modified RDP (rfc908) protocol implementation
+Description: Modified RDP (rfc908) protocol implementation over serial line
 Version: 0.1
 
 Libs: -L${libdir} -lrdpos @PRIVATE_LIBS@

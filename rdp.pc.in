@@ -1,0 +1,11 @@
+prefix=@DEST_DIR@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include/rdp
+
+Name: librdpos
+Description: Modified RDP (rfc908) protocol implementation
+Version: 0.1
+
+Libs: -L${libdir} -lrdp @PRIVATE_LIBS@
+Cflags: -I${includedir}

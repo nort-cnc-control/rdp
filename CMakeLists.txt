@@ -9,16 +9,17 @@ foreach(LIB ${COMMA_SEAPARATED_LIST})
   set(PRIVATE_LIBS "${PRIVATE_LIBS} -l${LIB}")
 endforeach()
 CONFIGURE_FILE("rdpos.pc.in" "rdpos.pc" @ONLY)
+CONFIGURE_FILE("rdp.pc.in" "rdp.pc" @ONLY)
+
 
 add_subdirectory(src)
 if (BUILD_TESTING)
     add_subdirectory(tests)
 endif ()
 
-install(TARGETS rdpos ARCHIVE DESTINATION lib)
-
 set(RT ${CMAKE_SOURCE_DIR}/src/)
 
+install(TARGETS rdpos ARCHIVE DESTINATION lib)
 install(FILES   ${RT}/rdpos.h
                 ${RT}/rdp/rdp.h
                 ${RT}/rdp/packages.h
@@ -27,6 +28,16 @@ install(FILES   ${RT}/rdpos.h
                 ${RT}/rdp/config.h
                 ${RT}/rdp/packages_public.h 
 	DESTINATION include/rdpos)
-
 install(FILES ${CMAKE_BINARY_DIR}/rdpos.pc
+	DESTINATION lib/pkgconfig)
+
+install(TARGETS rdp ARCHIVE DESTINATION lib)
+install(FILES   ${RT}/rdp/rdp.h
+                ${RT}/rdp/packages.h
+                ${RT}/rdp/defs.h
+                ${RT}/rdp/cycle.h
+                ${RT}/rdp/config.h
+                ${RT}/rdp/packages_public.h 
+	DESTINATION include/rdp)
+install(FILES ${CMAKE_BINARY_DIR}/rdp.pc
 	DESTINATION lib/pkgconfig)
