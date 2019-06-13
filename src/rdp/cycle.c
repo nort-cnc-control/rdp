@@ -342,7 +342,8 @@ static bool rdp_ack_received(struct rdp_connection_s *conn, const uint8_t *inbuf
 
 void rdp_init_connection(struct rdp_connection_s *conn,
                          uint8_t *outbuf, uint8_t *recvbuf,
-                         struct rdp_cbs_s *cbs)
+                         struct rdp_cbs_s *cbs,
+                         void *user_arg)
 {
     rdp_reset_connection(conn);
     conn->snd.iss = 1;
@@ -350,6 +351,7 @@ void rdp_init_connection(struct rdp_connection_s *conn,
     conn->recvbuf = recvbuf;
     conn->recvlen = 0;
     conn->cbs = cbs;
+    conn->user_arg = user_arg;
 }
 
 void rdp_reset_connection(struct rdp_connection_s *conn)

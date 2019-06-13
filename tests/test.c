@@ -111,8 +111,8 @@ struct rdp_cbs_s cbs = {
 
 void open_connections(void)
 {
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
 
     printf("C2 - listen\n");
     rdp_listen(&conn2, 1);
@@ -165,8 +165,8 @@ void test_connect_listen(void)
      * 4.    OPEN    <SEQ=101><ACK=200> --->                    OPEN
      */
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
 
     printf("C2 - listen\n");
     res = rdp_listen(&conn2, 1);
@@ -244,8 +244,8 @@ void test_connect_connect_1(void)
 {
     printf("\nTEST: Connect : Connect 1\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);
@@ -333,8 +333,8 @@ void test_connect_connect_2(void)
 {
     printf("\nTEST: Connect : Connect 2\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);
@@ -412,8 +412,8 @@ void test_connect_connect_3(void)
 {
     printf("\nTEST: Connect : Connect 3\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs);
+    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
+    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);

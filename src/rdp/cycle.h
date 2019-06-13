@@ -73,11 +73,13 @@ struct rdp_connection_s {
     uint8_t local_port;
     uint8_t remote_port;
     struct rdp_cbs_s *cbs;
+    void *user_arg;
 };
 
 void rdp_init_connection(struct rdp_connection_s *conn,
                          uint8_t *outbuf, uint8_t *recvbuf,
-                         struct rdp_cbs_s *cbs);
+                         struct rdp_cbs_s *cbs,
+                         void *user_arg);
 
 bool rdp_listen(struct rdp_connection_s *conn, uint8_t port);
 

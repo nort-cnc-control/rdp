@@ -110,7 +110,7 @@ int main(void)
 
     sendto(fd, "xxx", 3, MSG_CONFIRM, (struct sockaddr *) &servaddr, sizeof(servaddr));
 
-    rdp_init_connection(&conn, outbuffer, received, &cbs);
+    rdp_init_connection(&conn, outbuffer, received, &cbs, NULL);
     rdp_connect(&conn, 1, 1);
 
     while (conn.state != RDP_CLOSED)

@@ -118,7 +118,7 @@ int main(void)
 
     struct rdp_connection_s conn;
 
-    rdp_init_connection(&conn, outbuffer, received, &cbs);
+    rdp_init_connection(&conn, outbuffer, received, &cbs, NULL);
     rdp_listen(&conn, 1);
 
     while (true)
