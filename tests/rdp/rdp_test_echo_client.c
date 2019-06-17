@@ -11,16 +11,14 @@
 
 const int PORT = 9000;
 int fd;
-struct sockaddr_in servaddr, cliaddr;
-int clientaddrlen;
+struct sockaddr_in servaddr;;
 
-uint8_t received[RDP_MAX_SEGMENT_SIZE];
-size_t lenrecv;
 uint8_t inbuffer[RDP_MAX_SEGMENT_SIZE];
 uint8_t outbuffer[RDP_MAX_SEGMENT_SIZE];
+uint8_t received[RDP_MAX_SEGMENT_SIZE];
+size_t lenrecv;
 
-struct timeval tvr1, tvr2, dtvr;
-struct timeval tvc1, tvc2, dtvc;
+struct timeval tv1, tv2, dtv;
 struct timezone tz;
 bool waitack = false;
 bool waitclose = false;
@@ -32,7 +30,7 @@ void send_rdp(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
     printf("Sending %i bytes\n", dlen);
     printf("state = %i\n", conn->state);
     if (rand() > RAND_MAX / 5)
-        sendto(fd, data, dlen, MSG_CONFIRM, (struct sockaddr *) &cliaddr, clientaddrlen);
+        sendto(fd, data, dlen, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr));
     else
         printf("Package loss\n");
 }
@@ -46,8 +44,6 @@ void connected(struct rdp_connection_s *conn)
 void closed(struct rdp_connection_s *conn)
 {
     printf("closed\n");
-    waitack = false;
-    waitclose = false;
 }
 
 void data_send_completed(struct rdp_connection_s *conn)
@@ -58,13 +54,14 @@ void data_send_completed(struct rdp_connection_s *conn)
 void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len)
 {
     printf("Received: %.*s\n", len, buf);
+    lenrecv = len;
 }
 
 void ack_wait_start(struct rdp_connection_s *conn, uint32_t seq)
 {
     printf("Waiting ack %i start\n", seq);
     waitack = true;
-    gettimeofday(&tvr1, &tz);
+    gettimeofday(&tv1, &tz);
 }
 
 void ack_wait_completed(struct rdp_connection_s *conn, uint32_t seq)
@@ -77,7 +74,6 @@ void close_wait_start(struct rdp_connection_s *conn)
 {
     waitclose = true;
     printf("Waiting for connection close\n");
-    gettimeofday(&tvc1, &tz);
 }
 
 struct rdp_cbs_s cbs = {
@@ -94,106 +90,68 @@ struct rdp_cbs_s cbs = {
 
 int main(void)
 {
+    int n;
     fd = socket(AF_INET, SOCK_DGRAM, 0);
-
+    
     struct timeval tv;
     tv.tv_sec = 2;
     tv.tv_usec = 0;
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
 
+
     memset(&servaddr, 0, sizeof(servaddr)); 
-    memset(&cliaddr, 0, sizeof(cliaddr)); 
       
     // Filling server information 
     servaddr.sin_family    = AF_INET; // IPv4 
     servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
     servaddr.sin_port = htons(PORT); 
 
-    // Bind the socket with the server address 
-    if (bind(fd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) 
-    { 
-        perror("bind failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-
     struct rdp_connection_s conn;
 
-    rdp_init_connection(&conn, outbuffer, received, &cbs, NULL);
-    rdp_listen(&conn, 1);
+    sendto(fd, "xxx", 3, MSG_CONFIRM, (struct sockaddr *) &servaddr, sizeof(servaddr));
 
-    while (true)
+    rdp_init_connection(&conn, outbuffer, received, &cbs, NULL);
+    rdp_connect(&conn, 1, 1);
+
+    while (conn.state != RDP_CLOSED)
     {
-        int n;
-        n = recvfrom(fd, inbuffer, RDP_MAX_SEGMENT_SIZE,  
-                     MSG_WAITALL, (struct sockaddr *)&cliaddr, 
-                     &clientaddrlen);
+        socklen_t socklen;
+        int n = recv(fd, inbuffer, RDP_MAX_SEGMENT_SIZE, MSG_WAITALL); 
 
         if (n < 1)
         {
             if (waitack)
             {
-                gettimeofday(&tvr2, &tz);
-                dtvr.tv_sec = tvr2.tv_sec - tvr1.tv_sec;
-                dtvr.tv_usec = tvr2.tv_usec - tvr1.tv_usec;
-                if (dtvr.tv_usec < 0)
+                gettimeofday(&tv2, &tz);
+                dtv.tv_sec = tv2.tv_sec - tv1.tv_sec;
+                dtv.tv_usec = tv2.tv_usec - tv1.tv_usec;
+                if (dtv.tv_usec < 0)
                 {
-                    dtvr.tv_sec--;
-                    dtvr.tv_usec += 1000000;
+                    dtv.tv_sec--;
+                    dtv.tv_usec += 1000000;
                 }
 
-                int tmt = dtvr.tv_sec;
+                int tmt = dtv.tv_sec;
 
                 if (tmt > RDP_RESENT_TIMEOUT)
                 {
                     printf("RETRY\n");
                     rdp_retry(&conn);
+                    tv1 = tv2;
                 }
             }
-
-            if (waitclose)
-            {
-                gettimeofday(&tvc2, &tz);
-                dtvc.tv_sec = tvc2.tv_sec - tvc1.tv_sec;
-                dtvc.tv_usec = tvc2.tv_usec - tvc1.tv_usec;
-                if (dtvc.tv_usec < 0)
-                {
-                    dtvc.tv_sec--;
-                    dtvc.tv_usec += 1000000;
-                }
-
-                int tmt = dtvc.tv_sec;
-
-                if (tmt > RDP_CLOSE_TIMEOUT)
-                {
-                    rdp_final_close(&conn);
-                }
-            }
-            continue;
-        }
-
-        if (!memcmp(inbuffer, "xxx", 3))
-        {
-            //printf("foo\n");
             continue;
         }
 
         printf("state = %i\n", conn.state);
         bool res = rdp_received(&conn, inbuffer);
         printf("Res = %i\n", res);
-        if (cnctd)
+        if (lenrecv > 0)
         {
-            cnctd = 0;
-            const char hello[] = "Hello, world!";
-            rdp_send(&conn, hello, sizeof(hello) - 1);
-        }
-
-        if (conn.state == RDP_CLOSED)
-        {
-            rdp_listen(&conn, 1);
+            rdp_close(&conn);
+            lenrecv = 0;
         }
     }
-
-    printf("Hello message sent.\n");  
-
+    
     return 0;
 }

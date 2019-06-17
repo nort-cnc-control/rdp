@@ -1,18 +1,16 @@
-#include <sys/socket.h>
+#include <unistd.h>
 #include <sys/time.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <rdp.h>
+#include <rdpos.h>
 #include <stdlib.h> 
 #include <unistd.h> 
 #include <string.h> 
 #include <sys/types.h> 
-#include <arpa/inet.h> 
-#include <netinet/in.h> 
+#include <sys/stat.h>
 
-const int PORT = 9000;
-int fd;
-struct sockaddr_in servaddr, cliaddr;
-int clientaddrlen;
+int fd_in, fd_out;
 
 uint8_t received[RDP_MAX_SEGMENT_SIZE];
 size_t lenrecv;
@@ -27,27 +25,29 @@ bool waitclose = false;
 
 int cnctd = 0;
 
-void send_rdp(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
+void send_serial(void *arg, const void *data, size_t dlen)
 {
+    struct rdpos_connection_s *conn = arg;
     printf("Sending %i bytes\n", dlen);
-    printf("state = %i\n", conn->state);
-    if (rand() > RAND_MAX / 5)
-        sendto(fd, data, dlen, MSG_CONFIRM, (struct sockaddr *) &cliaddr, clientaddrlen);
+    printf("state = %i\n", conn->rdp_conn.state);
+    if (rand() > RAND_MAX / 10)
+        write(fd_out, data, dlen);
     else
-        printf("Package loss\n");
+        printf("Data loss\n");
 }
 
 void connected(struct rdp_connection_s *conn)
 {
-    printf("connected\n");
+    printf("Connected\n");
     cnctd = 1;
 }
 
 void closed(struct rdp_connection_s *conn)
 {
-    printf("closed\n");
+    printf("Connection closed\n");
     waitack = false;
     waitclose = false;
+    cnctd = 0;
 }
 
 void data_send_completed(struct rdp_connection_s *conn)
@@ -58,6 +58,7 @@ void data_send_completed(struct rdp_connection_s *conn)
 void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len)
 {
     printf("Received: %.*s\n", len, buf);
+    lenrecv = len;
 }
 
 void ack_wait_start(struct rdp_connection_s *conn, uint32_t seq)
@@ -80,8 +81,7 @@ void close_wait_start(struct rdp_connection_s *conn)
     gettimeofday(&tvc1, &tz);
 }
 
-struct rdp_cbs_s cbs = {
-    .send = send_rdp,
+static struct rdp_cbs_s cbs = {
     .connected = connected,
     .closed = closed,
     .data_send_completed = data_send_completed,
@@ -91,43 +91,44 @@ struct rdp_cbs_s cbs = {
     .close_wait_start = close_wait_start,
 };
 
+static struct rdpos_cbs_s scbs = {
+    .send_fn = send_serial,
+};
+
+static uint8_t rdp_recv_buf[RDP_MAX_SEGMENT_SIZE];
+static uint8_t rdp_outbuf[RDP_MAX_SEGMENT_SIZE];
+static uint8_t serial_inbuf[RDP_MAX_SEGMENT_SIZE];
+
+static struct rdpos_buffer_set_s bufs = {
+    .rdp_outbuf = rdp_outbuf,
+    .rdp_outbuf_len = RDP_MAX_SEGMENT_SIZE,
+    .rdp_recvbuf = rdp_recv_buf,
+    .rdp_recvbuf_len = RDP_MAX_SEGMENT_SIZE,
+    .serial_receive_buf = serial_inbuf,
+    .serial_receive_buf_len = RDP_MAX_SEGMENT_SIZE,
+};
 
 int main(void)
 {
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    mkfifo("pipe_srv_clt", 0777);
+    mkfifo("pipe_clt_srv", 0777);
 
-    struct timeval tv;
-    tv.tv_sec = 2;
-    tv.tv_usec = 0;
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+    fd_out = open("pipe_srv_clt", O_RDWR);
+    fd_in = open("pipe_clt_srv", O_RDWR | O_NONBLOCK);
 
-    memset(&servaddr, 0, sizeof(servaddr)); 
-    memset(&cliaddr, 0, sizeof(cliaddr)); 
-      
-    // Filling server information 
-    servaddr.sin_family    = AF_INET; // IPv4 
-    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
-    servaddr.sin_port = htons(PORT); 
+    struct rdpos_connection_s sconn;
+    struct rdp_connection_s *conn = &sconn.rdp_conn;
 
-    // Bind the socket with the server address 
-    if (bind(fd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) 
-    { 
-        perror("bind failed"); 
-        exit(EXIT_FAILURE); 
-    } 
+    rdpos_init_connection(&sconn, &bufs, &cbs, &scbs);
+    rdp_listen(conn, 1);
 
-    struct rdp_connection_s conn;
-
-    rdp_init_connection(&conn, outbuffer, received, &cbs, NULL);
-    rdp_listen(&conn, 1);
+    printf("state = %i\n", conn->state);
 
     while (true)
     {
-        int n;
-        n = recvfrom(fd, inbuffer, RDP_MAX_SEGMENT_SIZE,  
-                     MSG_WAITALL, (struct sockaddr *)&cliaddr, 
-                     &clientaddrlen);
-
+        unsigned char b;
+        usleep(10000);
+        ssize_t n = read(fd_in, &b, 1);
         if (n < 1)
         {
             if (waitack)
@@ -146,7 +147,8 @@ int main(void)
                 if (tmt > RDP_RESENT_TIMEOUT)
                 {
                     printf("RETRY\n");
-                    rdp_retry(&conn);
+                    rdp_retry(conn);
+                    tvr1 = tvr2;
                 }
             }
 
@@ -165,31 +167,27 @@ int main(void)
 
                 if (tmt > RDP_CLOSE_TIMEOUT)
                 {
-                    rdp_final_close(&conn);
+                    rdp_final_close(conn);
+                    tvc1 = tvc2;
                 }
             }
             continue;
         }
 
-        if (!memcmp(inbuffer, "xxx", 3))
-        {
-            //printf("foo\n");
-            continue;
-        }
-
-        printf("state = %i\n", conn.state);
-        bool res = rdp_received(&conn, inbuffer);
-        printf("Res = %i\n", res);
+        bool res = rdpos_byte_received(&sconn, b);
         if (cnctd)
         {
+            printf("Connected: state = %i\n", conn->state);
             cnctd = 0;
             const char hello[] = "Hello, world!";
-            rdp_send(&conn, hello, sizeof(hello) - 1);
+            rdp_send(conn, hello, sizeof(hello) - 1);
         }
 
-        if (conn.state == RDP_CLOSED)
+        if (conn->state == RDP_CLOSED)
         {
-            rdp_listen(&conn, 1);
+            printf("Closed: state = %i\n", conn->state);
+            rdp_listen(conn, 1);
+            printf("Listening: state = %i\n", conn->state); 
         }
     }
 
