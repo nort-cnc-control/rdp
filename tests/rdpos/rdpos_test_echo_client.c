@@ -29,10 +29,7 @@ void send_serial(void *arg, const void *data, size_t dlen)
     struct rdpos_connection_s *conn = arg;
     printf("Sending %i bytes\n", dlen);
     printf("state = %i\n", conn->rdp_conn.state);
-    if (rand() > RAND_MAX / 10)
-        write(fd_out, data, dlen);
-    else
-        printf("Data loss\n");
+    write(fd_out, data, dlen);
 }
 
 void connected(struct rdp_connection_s *conn)
@@ -149,6 +146,13 @@ int main(void)
 
             continue;
         }
+
+        if (rand() < RAND_MAX / 100)
+	{
+	    printf("Data loss\n");
+            continue;
+	}
+
         bool res = rdpos_byte_received(&sconn, b);
         if (lenrecv > 0)
         {

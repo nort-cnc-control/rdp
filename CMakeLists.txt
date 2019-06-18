@@ -28,6 +28,8 @@ install(FILES   ${RT}/rdpos.h
                 ${RT}/rdp/config.h
                 ${RT}/rdp/packages_public.h 
 	DESTINATION include/rdpos)
+install(FILES   ${RT}/serial-datagram/serial_datagram.h
+  DESTINATION include/rdpos/serial-datagram)
 install(FILES ${CMAKE_BINARY_DIR}/rdpos.pc
 	DESTINATION lib/pkgconfig)
 
