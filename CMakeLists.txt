@@ -17,6 +17,10 @@ if (BUILD_TESTING)
     add_subdirectory(tests)
 endif ()
 
+if (BUILD_UTILS)
+    add_subdirectory(util/rdpos_terminal)
+endif()
+
 set(RT ${CMAKE_SOURCE_DIR}/src/)
 
 install(TARGETS rdpos ARCHIVE DESTINATION lib)
@@ -43,3 +47,8 @@ install(FILES   ${RT}/rdp/rdp.h
 	DESTINATION include/rdp)
 install(FILES ${CMAKE_BINARY_DIR}/rdp.pc
 	DESTINATION lib/pkgconfig)
+
+if (BUILD_UTILS)
+    install(TARGETS rdpos_terminal RUNTIME DESTINATION bin)
+endif()
+

@@ -1,6 +1,7 @@
 #include <cycle.h>
 #include <packages.h>
 #include <string.h>
+#include <stdio.h>
 
 /*
 
@@ -292,12 +293,25 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
 
 static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, uint32_t ack, const uint8_t *data, size_t dlen)
 {
-    if (conn->snd.una == ack)
+    /*
+    printf("ack = %i\n", ack);
+    printf("una = %i\n", conn->snd.una);
+    printf("iss = %i\n", conn->snd.iss);
+    */
+    if (conn->snd.una == conn->snd.iss)
+    {
+        // ok
+    }
+    else if (ack == conn->snd.una)
     {
         conn->snd.una = conn->snd.iss;
         conn->cbs->ack_wait_completed(conn, ack);
     }
-    else if (conn->snd.una != conn->snd.iss)
+    else if (ack < conn->snd.una)
+    {
+        // ok
+    }
+    else
     {
         return false;
     }

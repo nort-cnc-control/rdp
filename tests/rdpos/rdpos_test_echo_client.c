@@ -12,9 +12,10 @@
 int fd_in, fd_out;
 
 uint8_t received[RDP_MAX_SEGMENT_SIZE];
-size_t lenrecv;
 uint8_t inbuffer[RDP_MAX_SEGMENT_SIZE];
 uint8_t outbuffer[RDP_MAX_SEGMENT_SIZE];
+
+size_t lenrecv;
 
 struct timeval tvr1, tvr2, dtvr;
 struct timeval tvc1, tvc2, dtvc;
@@ -134,9 +135,8 @@ int main(void)
                     dtvr.tv_usec += 1000000;
                 }
 
-                int tmt = dtvr.tv_sec;
-
-                if (tmt > RDP_RESENT_TIMEOUT)
+                int tmt = dtvr.tv_sec * 1e6 + dtvr.tv_usec;
+                if (tmt > RDP_RESEND_TIMEOUT)
                 {
                     printf("RETRY\n");
                     rdp_retry(conn);
@@ -148,10 +148,10 @@ int main(void)
         }
 
         if (rand() < RAND_MAX / 100)
-	{
-	    printf("Data loss\n");
-            continue;
-	}
+	    {
+	        printf("Data loss\n");
+                continue;
+	    }
 
         bool res = rdpos_byte_received(&sconn, b);
         if (lenrecv > 0)

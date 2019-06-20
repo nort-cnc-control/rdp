@@ -124,7 +124,7 @@ int main(void)
     while (true)
     {
         unsigned char b;
-        usleep(10000);
+        usleep(1000);
         ssize_t n = read(fd_in, &b, 1);
         if (n < 1)
         {
@@ -139,9 +139,8 @@ int main(void)
                     dtvr.tv_usec += 1000000;
                 }
 
-                int tmt = dtvr.tv_sec;
-
-                if (tmt > RDP_RESENT_TIMEOUT)
+                int tmt = dtvr.tv_sec * 1e6 + dtvr.tv_usec;
+                if (tmt > RDP_RESEND_TIMEOUT)
                 {
                     printf("RETRY\n");
                     rdp_retry(conn);
@@ -160,8 +159,7 @@ int main(void)
                     dtvc.tv_usec += 1000000;
                 }
 
-                int tmt = dtvc.tv_sec;
-
+                int tmt = dtvc.tv_sec * 1e6 + dtvc.tv_usec;
                 if (tmt > RDP_CLOSE_TIMEOUT)
                 {
                     rdp_final_close(conn);
@@ -170,13 +168,13 @@ int main(void)
             }
             continue;
         }
-
+/*
         if (rand() < RAND_MAX / 100)
-	{
-	    printf("Data loss\n");
-            continue;
-	}
-	bool res = rdpos_byte_received(&sconn, b);
+	    {
+	        printf("Data loss\n");
+                continue;
+	    }*/
+	    bool res = rdpos_byte_received(&sconn, b);
         if (cnctd)
         {
             printf("Connected: state = %i\n", conn->state);

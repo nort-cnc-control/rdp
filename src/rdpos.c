@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <rdpos.h>
 #include <serial-datagram/serial_datagram.h>
 
@@ -11,8 +12,16 @@ static void datagram_received(const void *data, size_t len, void *arg)
 {
     struct rdpos_connection_s *sconn = arg;
     struct rdp_connection_s *conn = &sconn->rdp_conn;
-
+/*
+    int i;
+    printf("\nRCV: (%i) ", len);
+    for (i = 0; i < len; i++)
+        printf("%02X ", ((const uint8_t*)data)[i]);
+*/
     bool res = rdp_received(conn, (const uint8_t*)data);
+/*
+    printf("\nRES = %i\n", res);
+*/
 }
 
 void rdpos_init_connection(struct rdpos_connection_s *conn,

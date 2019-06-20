@@ -133,7 +133,7 @@ int main(void)
 
                 int tmt = dtv.tv_sec;
 
-                if (tmt > RDP_RESENT_TIMEOUT)
+                if (tmt > RDP_RESEND_TIMEOUT)
                 {
                     printf("RETRY\n");
                     rdp_retry(&conn);

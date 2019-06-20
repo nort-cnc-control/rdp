@@ -11,8 +11,8 @@
 #define RDP_MAX_OUTSTANGING 0
 
 // Close timeout
-#define RDP_CLOSE_TIMEOUT 6
+#define RDP_CLOSE_TIMEOUT 6000000
 
 // Resend timeout
-#define RDP_RESENT_TIMEOUT 1
+#define RDP_RESEND_TIMEOUT 100000
 
