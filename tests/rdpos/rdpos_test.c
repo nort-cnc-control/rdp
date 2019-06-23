@@ -178,26 +178,11 @@ void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len
     rcvd = len;
 }
 
-void ack_wait_start(struct rdp_connection_s *conn, uint32_t seq)
-{
-}
-
-void ack_wait_completed(struct rdp_connection_s *conn, uint32_t seq)
-{
-}
-
-void close_wait_start(struct rdp_connection_s *conn)
-{
-}
-
 struct rdp_cbs_s cbs = {
     .connected = connected,
     .closed = closed,
     .data_send_completed = data_send_completed,
     .data_received = data_received,
-    .ack_wait_start = ack_wait_start,
-    .ack_wait_completed = ack_wait_completed,
-    .close_wait_start = close_wait_start,
 };
 
 struct rdpos_cbs_s scbs = {

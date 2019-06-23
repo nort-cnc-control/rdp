@@ -19,12 +19,6 @@ size_t lenrecv;
 uint8_t inbuffer[RDP_MAX_SEGMENT_SIZE];
 uint8_t outbuffer[RDP_MAX_SEGMENT_SIZE];
 
-struct timeval tvr1, tvr2, dtvr;
-struct timeval tvc1, tvc2, dtvc;
-struct timezone tz;
-bool waitack = false;
-bool waitclose = false;
-
 int cnctd = 0;
 
 void send_rdp(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
@@ -46,8 +40,6 @@ void connected(struct rdp_connection_s *conn)
 void closed(struct rdp_connection_s *conn)
 {
     printf("closed\n");
-    waitack = false;
-    waitclose = false;
 }
 
 void data_send_completed(struct rdp_connection_s *conn)
@@ -60,37 +52,13 @@ void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len
     printf("Received: %.*s\n", len, buf);
 }
 
-void ack_wait_start(struct rdp_connection_s *conn, uint32_t seq)
-{
-    printf("Waiting ack %i start\n", seq);
-    waitack = true;
-    gettimeofday(&tvr1, &tz);
-}
-
-void ack_wait_completed(struct rdp_connection_s *conn, uint32_t seq)
-{
-    waitack = false;
-    printf("Waiting ack %i completed\n", seq);
-}
-
-void close_wait_start(struct rdp_connection_s *conn)
-{
-    waitclose = true;
-    printf("Waiting for connection close\n");
-    gettimeofday(&tvc1, &tz);
-}
-
 struct rdp_cbs_s cbs = {
     .send = send_rdp,
     .connected = connected,
     .closed = closed,
     .data_send_completed = data_send_completed,
     .data_received = data_received,
-    .ack_wait_start = ack_wait_start,
-    .ack_wait_completed = ack_wait_completed,
-    .close_wait_start = close_wait_start,
 };
-
 
 int main(void)
 {
@@ -130,46 +98,7 @@ int main(void)
 
         if (n < 1)
         {
-            if (waitack)
-            {
-                gettimeofday(&tvr2, &tz);
-                dtvr.tv_sec = tvr2.tv_sec - tvr1.tv_sec;
-                dtvr.tv_usec = tvr2.tv_usec - tvr1.tv_usec;
-                if (dtvr.tv_usec < 0)
-                {
-                    dtvr.tv_sec--;
-                    dtvr.tv_usec += 1000000;
-                }
-
-                int tmt = dtvr.tv_sec;
-
-                if (tmt > RDP_RESEND_TIMEOUT)
-                {
-                    printf("RETRY\n");
-                    rdp_retry(&conn);
-                    tvr1 = tvr2;
-                }
-            }
-
-            if (waitclose)
-            {
-                gettimeofday(&tvc2, &tz);
-                dtvc.tv_sec = tvc2.tv_sec - tvc1.tv_sec;
-                dtvc.tv_usec = tvc2.tv_usec - tvc1.tv_usec;
-                if (dtvc.tv_usec < 0)
-                {
-                    dtvc.tv_sec--;
-                    dtvc.tv_usec += 1000000;
-                }
-
-                int tmt = dtvc.tv_sec;
-
-                if (tmt > RDP_CLOSE_TIMEOUT)
-                {
-                    rdp_final_close(&conn);
-                    tvc1 = tvc2;
-                }
-            }
+            rdp_clock(&conn, 2000000UL);
             continue;
         }
 

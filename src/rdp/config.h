@@ -2,7 +2,7 @@
 
 // Must be aligned to 4
 // Must be > 24
-#define RDP_MAX_SEGMENT_SIZE 256
+#define RDP_MAX_SEGMENT_SIZE 128
 
 // Require order of packets
 #define RDP_SDM 1

@@ -47,6 +47,7 @@ size_t rdp_build_syn_package(uint8_t *buf, uint8_t src, uint8_t dst,
     const size_t var = 18;
     const size_t hlen = var + 6;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
+    memset(hdr, 0, sizeof(*hdr));
     hdr->syn = 1;
     hdr->ack = 0;
     hdr->eack = 0;
@@ -79,6 +80,7 @@ size_t rdp_build_synack_package(uint8_t *buf, uint8_t src, uint8_t dst,
     const size_t var = 18;
     const size_t hlen = var + 6;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
+    memset(hdr, 0, sizeof(*hdr));
     hdr->syn = 1;
     hdr->ack = 1;
     hdr->eack = 0;
@@ -115,6 +117,7 @@ size_t rdp_build_ack_package(uint8_t *buf, uint8_t src, uint8_t dst,
         return 0;
 
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
+    memset(hdr, 0, sizeof(*hdr));
     hdr->syn = 0;
     hdr->ack = 1;
     hdr->eack = 0;
@@ -143,6 +146,7 @@ size_t rdp_build_rstack_package(uint8_t *buf, uint8_t src, uint8_t dst,
     const size_t hlen = var;
     
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
+    memset(hdr, 0, sizeof(*hdr));
     hdr->syn = 0;
     hdr->ack = 1;
     hdr->eack = 0;
@@ -174,6 +178,7 @@ size_t rdb_build_eack_package(uint8_t *buf, uint8_t src, uint8_t dst,
         return 0;
 
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
+    memset(hdr, 0, sizeof(*hdr));
     hdr->syn = 0;
     hdr->ack = 1;
     hdr->eack = 1;
@@ -208,6 +213,7 @@ size_t rdb_build_rst_package(uint8_t *buf, uint8_t src, uint8_t dst,
     const size_t var = 18;
     const size_t hlen = var;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
+    memset(hdr, 0, sizeof(*hdr));
     hdr->syn = 0;
     hdr->ack = 0;
     hdr->eack = 0;
@@ -231,6 +237,7 @@ size_t rdb_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
     const size_t var = 18;
     const size_t hlen = var;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
+    memset(hdr, 0, sizeof(*hdr));
     hdr->syn = 0;
     hdr->ack = 0;
     hdr->eack = 0;

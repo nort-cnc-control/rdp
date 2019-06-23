@@ -20,9 +20,6 @@ struct rdp_cbs_s {
     void (*closed)(struct rdp_connection_s *);
     void (*data_send_completed)(struct rdp_connection_s *);
     void (*data_received)(struct rdp_connection_s *, const uint8_t *, size_t);
-    void (*ack_wait_start)(struct rdp_connection_s *, uint32_t);
-    void (*ack_wait_completed)(struct rdp_connection_s *, uint32_t);
-    void (*close_wait_start)(struct rdp_connection_s *);
 };
 
 struct rdp_connection_s {

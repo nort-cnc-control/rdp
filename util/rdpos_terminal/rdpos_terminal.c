@@ -10,7 +10,6 @@
 
 pthread_mutex_t communication_lock;
 
-
 pthread_cond_t connected_flag;
 pthread_mutex_t mp;
 int cnctd = 0;
@@ -18,13 +17,8 @@ int cnctd = 0;
 static struct rdpos_connection_s sconn;
 static struct rdp_connection_s *conn = &sconn.rdp_conn;
 
-timer_t ack_wait_timer;
-timer_t close_wait_timer;
-
-
 int clsd;
-int fd_out;
-int fd_in;
+int fd;
 
 void ack_timeout(union sigval sig)
 {
@@ -44,10 +38,14 @@ void close_timeout(union sigval sig)
 
 void send_serial(void *arg, const void *data, size_t dlen)
 {
+    int i;
     struct rdpos_connection_s *conn = arg;
     printf("Sending %i bytes\n", dlen);
+    for (i = 0; i < dlen; i++)
+        printf("%02X ", ((const uint8_t*)data)[i]);
+    printf("\n");
     printf("state = %i\n", conn->rdp_conn.state);
-    write(fd_out, data, dlen);
+    write(fd, data, dlen);
 }
 
 void connected(struct rdp_connection_s *conn)
@@ -59,18 +57,6 @@ void connected(struct rdp_connection_s *conn)
 
 void closed(struct rdp_connection_s *conn)
 {
-    const struct itimerspec tspec = {
-        .it_interval = {
-            .tv_sec = 0,
-            .tv_nsec = 0,
-        },
-        .it_value = {
-            .tv_sec = 0,
-            .tv_nsec = 0,
-        },
-    };
-
-    timer_settime(close_wait_timer, 0, &tspec, NULL);
     printf("Connection closed\n");
     clsd = 1;
 }
@@ -85,65 +71,11 @@ void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len
     printf("Received: %.*s\n", len, buf);
 }
 
-void ack_wait_start(struct rdp_connection_s *conn, uint32_t seq)
-{
-    printf("Waiting ack %i start\n", seq);
-    const struct itimerspec tspec = {
-        .it_interval = {
-            .tv_sec = RDP_RESEND_TIMEOUT / 1000000,
-            .tv_nsec = (RDP_RESEND_TIMEOUT % 1000000) * 1e3,
-        },
-        .it_value = {
-            .tv_sec = RDP_RESEND_TIMEOUT / 1000000,
-            .tv_nsec = (RDP_RESEND_TIMEOUT % 1000000) * 1e3,
-        },
-    };
-
-    timer_settime(ack_wait_timer, 0, &tspec, NULL);
-}
-
-void ack_wait_completed(struct rdp_connection_s *conn, uint32_t seq)
-{
-    const struct itimerspec tspec = {
-        .it_interval = {
-            .tv_sec = 0,
-            .tv_nsec = 0,
-        },
-        .it_value = {
-            .tv_sec = 0,
-            .tv_nsec = 0,
-        },
-    };
-
-    timer_settime(ack_wait_timer, 0, &tspec, NULL);
-    printf("Waiting ack %i completed\n", seq);
-}
-
-void close_wait_start(struct rdp_connection_s *conn)
-{
-    printf("Waiting for connection close\n");
-    const struct itimerspec tspec = {
-        .it_interval = {
-            .tv_sec = RDP_CLOSE_TIMEOUT / 1000000,
-            .tv_nsec = (RDP_CLOSE_TIMEOUT % 1000000) * 1e3,
-        },
-        .it_value = {
-            .tv_sec = RDP_CLOSE_TIMEOUT / 1000000,
-            .tv_nsec = (RDP_CLOSE_TIMEOUT % 1000000) * 1e3,
-        },
-    };
-
-    timer_settime(ack_wait_timer, 0, &tspec, NULL);
-}
-
 static struct rdp_cbs_s cbs = {
     .connected = connected,
     .closed = closed,
     .data_send_completed = data_send_completed,
     .data_received = data_received,
-    .ack_wait_start = ack_wait_start,
-    .ack_wait_completed = ack_wait_completed,
-    .close_wait_start = close_wait_start,
 };
 
 static struct rdpos_cbs_s scbs = {
@@ -165,13 +97,16 @@ static struct rdpos_buffer_set_s bufs = {
 
 void *receive(void *arg)
 {
+    printf("Starting recv thread\n");
     while (!clsd)
     {
         unsigned char b;
-        usleep(1000);
-        ssize_t n = read(fd_in, &b, 1);
+        ssize_t n = read(fd, &b, 1);
         if (n < 1)
+        {
+            rdp_clock(conn, 100000UL);
             continue;
+        }
         //printf("B");
         pthread_mutex_lock(&communication_lock);
         bool res = rdpos_byte_received(&sconn, b);
@@ -186,7 +121,6 @@ void *receive(void *arg)
 }
 
 pthread_t tid; /* идентификатор потока */
- 
 
 void handle_exit(int signo)
 {
@@ -210,36 +144,38 @@ int main(int argc, const char **argv)
     speed_t brate = B9600;
     int rdp_port = 1;
 
-    fd_out = open(serial_port, O_RDWR);
-    fd_in = fd_out;
+    fd = open(serial_port, O_RDWR | O_NOCTTY | O_SYNC);
 
-    struct termios settings;
-    tcgetattr(fd_out, &settings);
+    struct termios tty;
+    tcgetattr(fd, &tty);
 
-    cfsetospeed(&settings, brate); /* baud rate */
-    settings.c_cflag &= ~PARENB; /* no parity */
-    settings.c_cflag &= ~CSTOPB; /* 1 stop bit */
-    settings.c_cflag &= ~CSIZE;
-    settings.c_cflag |= CS8 | CLOCAL; /* 8 bits */
-    settings.c_lflag = ICANON; /* canonical mode */
-    settings.c_oflag &= ~OPOST; /* raw output */
+    cfsetospeed(&tty, brate); /* baud rate */
+    cfsetispeed(&tty, brate); /* baud rate */
+    
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
+    // disable IGNBRK for mismatched speed tests; otherwise receive break
+    // as \000 chars
+    tty.c_iflag &= ~IGNBRK;         // disable break processing
+    tty.c_lflag = 0;                // no signaling chars, no echo,
+                                        // no canonical processing
+    tty.c_oflag = 0;                // no remapping, no delays
+    tty.c_cc[VMIN]  = 0;            // read doesn't block
+    tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
 
-    tcsetattr(fd_out, TCSANOW, &settings); /* apply the settings */
-    tcflush(fd_out, TCOFLUSH);
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
+
+    tty.c_cflag |= (CLOCAL | CREAD);// ignore modem controls,
+                                        // enable reading
+    tty.c_cflag &= ~(PARENB | PARODD);      // shut off parity
+    tty.c_cflag &= ~CSTOPB;
+
+    tty.c_cc[VMIN]  = 0;            // non block
+    tty.c_cc[VTIME] = 1;            // 0.1 seconds read timeout
+    
+    tcsetattr(fd, TCSANOW, &tty); /* apply the settings */
+    tcflush(fd, TCOFLUSH);
 
     rdpos_init_connection(&sconn, &bufs, &cbs, &scbs);
-
-    struct sigevent ack_evt = {
-        .sigev_notify = SIGEV_THREAD,
-        .sigev_notify_function = ack_timeout,
-    };
-    timer_create(CLOCK_REALTIME, &ack_evt, &ack_wait_timer);
-
-    struct sigevent close_evt = {
-        .sigev_notify = SIGEV_THREAD,
-        .sigev_notify_function = close_timeout,
-    };
-    timer_create(CLOCK_REALTIME, &close_evt, &close_wait_timer);
 
     clsd = 0;
     pthread_cond_init(&connected_flag, NULL);
@@ -247,6 +183,8 @@ int main(int argc, const char **argv)
 
     pthread_attr_init(&attr);
     pthread_create(&tid, &attr, receive, NULL);
+
+    usleep(100000);
 
     pthread_mutex_lock(&communication_lock);
     rdp_connect(conn, 1, 1);
