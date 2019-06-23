@@ -107,7 +107,7 @@ void *receive(void *arg)
             rdp_clock(conn, 100000UL);
             continue;
         }
-        //printf("B");
+        printf("%02X ", b, b);
         pthread_mutex_lock(&communication_lock);
         bool res = rdpos_byte_received(&sconn, b);
         pthread_mutex_unlock(&communication_lock);

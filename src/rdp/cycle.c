@@ -79,6 +79,7 @@ static bool rdp_send_syn(struct rdp_connection_s *conn, uint8_t src_port, uint8_
     conn->state = RDP_SYN_SENT;
 
     conn->snd.nxt = conn->snd.iss + 1;
+    conn->snd.dts = conn->snd.iss;
 
     size_t len = rdp_build_syn_package(conn->outbuf, src_port, dst_port, conn->snd.nxt);
     conn->snd.una = conn->snd.nxt;
@@ -106,7 +107,7 @@ static bool rdp_syn_received(struct rdp_connection_s *conn, uint8_t src_port, ui
 
         conn->rcv.irs = seq;
         conn->rcv.cur = seq;
-        
+
         conn->snd.nxt = conn->snd.iss + 1;
 
         size_t len = rdp_build_synack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
@@ -338,17 +339,24 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
 static bool rdp_ack_received(struct rdp_connection_s *conn, const uint8_t *inbuf)
 {
     struct rdp_header_s *hdr = (struct rdp_header_s *)inbuf;
-
     size_t pdlen = hdr->data_length;
+    bool res = false;
     if (pdlen > 0)
     {
         const uint8_t *data = inbuf + hdr->header_length * 2;
-        return rdp_ack_data_received(conn, hdr->sequence_number, hdr->acknowledgement_number, data, pdlen);
+        res = rdp_ack_data_received(conn, hdr->sequence_number, hdr->acknowledgement_number, data, pdlen);
     }
     else
     {
-        return rdp_empty_ack_received(conn, hdr->sequence_number, hdr->acknowledgement_number);
+        res = rdp_empty_ack_received(conn, hdr->sequence_number, hdr->acknowledgement_number);
     }
+
+    if (conn->snd.dts != conn->snd.iss && hdr->acknowledgement_number == conn->snd.dts)
+    {
+        conn->cbs->data_send_completed(conn);
+        conn->snd.dts = conn->snd.iss;
+    }
+    return res;
 }
 
 // Connection operations
@@ -383,6 +391,7 @@ bool rdp_listen(struct rdp_connection_s *conn, uint8_t port)
 {
     if (conn->state != RDP_CLOSED)
         return false;
+    conn->snd.dts = conn->snd.iss;        
     conn->snd.nxt = conn->snd.iss + 1;
     conn->snd.una = conn->snd.iss;
     conn->local_port = port;
@@ -433,9 +442,9 @@ bool rdp_send(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
     if (!rdp_can_send(conn))
         return false;
     // Actual data sending
-    conn->snd.dts = conn->snd.nxt;
     size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, data, dlen);
     conn->snd.una = conn->snd.nxt;
+    conn->snd.dts = conn->snd.nxt;
     conn->snd.nxt++;
     conn->out_data_length = len;
     conn->cbs->send(conn, conn->outbuf, len);
