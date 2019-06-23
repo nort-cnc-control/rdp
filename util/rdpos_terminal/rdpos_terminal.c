@@ -20,55 +20,39 @@ static struct rdp_connection_s *conn = &sconn.rdp_conn;
 int clsd;
 int fd;
 
-void ack_timeout(union sigval sig)
-{
-    printf("RETRY\n");
-    pthread_mutex_lock(&communication_lock);
-    rdp_retry(conn);
-    pthread_mutex_unlock(&communication_lock);
-}
-
-void close_timeout(union sigval sig)
-{
-    pthread_mutex_lock(&communication_lock);
-    rdp_close(conn);
-    pthread_mutex_unlock(&communication_lock);
-    clsd = 1;
-}
-
 void send_serial(void *arg, const void *data, size_t dlen)
 {
     int i;
     struct rdpos_connection_s *conn = arg;
-    printf("Sending %i bytes\n", dlen);
-    for (i = 0; i < dlen; i++)
-        printf("%02X ", ((const uint8_t*)data)[i]);
-    printf("\n");
-    printf("state = %i\n", conn->rdp_conn.state);
+//    printf("\nSending %i bytes\n", dlen);
+//    for (i = 0; i < dlen; i++)
+//        printf("%02X ", ((const uint8_t*)data)[i]);
+//    printf("\n");
+//    printf("state = %i\n", conn->rdp_conn.state);
     write(fd, data, dlen);
 }
 
 void connected(struct rdp_connection_s *conn)
 {
-    printf("Connected\n");
+    printf("\nConnected\n");
     cnctd = 1;
     pthread_cond_signal(&connected_flag);
 }
 
 void closed(struct rdp_connection_s *conn)
 {
-    printf("Connection closed\n");
+    printf("\nConnection closed\n");
     clsd = 1;
 }
 
 void data_send_completed(struct rdp_connection_s *conn)
 {
-    printf("Data send completed\n");
+//    printf("\nData send completed\n");
 }
 
 void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len)
 {
-    printf("Received: %.*s\n", len, buf);
+    printf("\nReceived: %.*s\n", len, buf);
 }
 
 static struct rdp_cbs_s cbs = {
@@ -97,7 +81,7 @@ static struct rdpos_buffer_set_s bufs = {
 
 void *receive(void *arg)
 {
-    printf("Starting recv thread\n");
+//    printf("Starting recv thread\n");
     while (!clsd)
     {
         unsigned char b;
@@ -107,9 +91,13 @@ void *receive(void *arg)
             rdp_clock(conn, 100000UL);
             continue;
         }
-        printf("%02X ", b, b);
+//        printf("%02X ", b);
         pthread_mutex_lock(&communication_lock);
         bool res = rdpos_byte_received(&sconn, b);
+        /*if (b == 0xC0)
+        {
+            printf("RES = %i\n", res);
+        }*/
         pthread_mutex_unlock(&communication_lock);
         if (conn->state == RDP_CLOSED)
         {
@@ -160,7 +148,7 @@ int main(int argc, const char **argv)
                                         // no canonical processing
     tty.c_oflag = 0;                // no remapping, no delays
     tty.c_cc[VMIN]  = 0;            // read doesn't block
-    tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
+    tty.c_cc[VTIME] = 1;            // 0.1 seconds read timeout
 
     tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
 

@@ -14,10 +14,10 @@ static void datagram_received(const void *data, size_t len, void *arg)
     struct rdp_connection_s *conn = &sconn->rdp_conn;
 /*
     int i;
-    printf("\nRCV: (%i) ", len);
+    printf("\nDATAGRAM RCV: (%i) ", len);
     for (i = 0; i < len; i++)
         printf("%02X ", ((const uint8_t*)data)[i]);
-*/
+    printf("\n");*/
     bool res = rdp_received(conn, (const uint8_t*)data);
 /*
     printf("\nRES = %i\n", res);
@@ -47,6 +47,7 @@ bool rdpos_byte_received(struct rdpos_connection_s *conn, uint8_t data)
         case SERIAL_DATAGRAM_RCV_NO_ERROR:
             return true;
         default:
+            printf("ERR = %i\n", res);
             return false;
     }
 }

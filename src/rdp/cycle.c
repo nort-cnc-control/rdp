@@ -316,7 +316,7 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
         return false;
     }
         
-
+    bool rcvd = false;
     conn->rcv.cur = seq;
     switch (conn->state)
     {
@@ -324,12 +324,16 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
             if (seq > conn->rcv.dts)
             {
                 memcpy(conn->recvbuf, data, dlen);
-                conn->cbs->data_received(conn, conn->recvbuf, dlen);
+                rcvd = true;
             }
             conn->rcv.dts = seq;
             size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
             conn->out_data_length = len;
             conn->cbs->send(conn, conn->outbuf, len);
+            if (rcvd)
+            {
+                conn->cbs->data_received(conn, conn->recvbuf, dlen);
+            }
             return true;
         default:
             return false;
