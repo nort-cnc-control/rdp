@@ -24,11 +24,11 @@ void send_serial(void *arg, const void *data, size_t dlen)
 {
     int i;
     struct rdpos_connection_s *conn = arg;
-//    printf("\nSending %i bytes\n", dlen);
-//    for (i = 0; i < dlen; i++)
-//        printf("%02X ", ((const uint8_t*)data)[i]);
-//    printf("\n");
-//    printf("state = %i\n", conn->rdp_conn.state);
+    printf("\nSending %i bytes\n", dlen);
+    for (i = 0; i < dlen; i++)
+        printf("%02X ", ((const uint8_t*)data)[i]);
+    printf("\n");
+    printf("state = %i\n", conn->rdp_conn.state);
     write(fd, data, dlen);
 }
 
@@ -47,7 +47,7 @@ void closed(struct rdp_connection_s *conn)
 
 void data_send_completed(struct rdp_connection_s *conn)
 {
-//    printf("\nData send completed\n");
+    printf("\nData send completed\n");
 }
 
 void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len)
@@ -81,7 +81,7 @@ static struct rdpos_buffer_set_s bufs = {
 
 void *receive(void *arg)
 {
-//    printf("Starting recv thread\n");
+    printf("Starting recv thread\n");
     while (!clsd)
     {
         unsigned char b;
@@ -91,13 +91,9 @@ void *receive(void *arg)
             rdp_clock(conn, 100000UL);
             continue;
         }
-//        printf("%02X ", b);
+        printf("%02X ", b);
         pthread_mutex_lock(&communication_lock);
         bool res = rdpos_byte_received(&sconn, b);
-        /*if (b == 0xC0)
-        {
-            printf("RES = %i\n", res);
-        }*/
         pthread_mutex_unlock(&communication_lock);
         if (conn->state == RDP_CLOSED)
         {
@@ -129,7 +125,7 @@ int main(int argc, const char **argv)
     pthread_attr_t attr; /* отрибуты потока */
 
     const char *serial_port = argv[1];
-    speed_t brate = B9600;
+    speed_t brate = B115200;
     int rdp_port = 1;
 
     fd = open(serial_port, O_RDWR | O_NOCTTY | O_SYNC);
