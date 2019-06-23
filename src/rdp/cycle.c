@@ -353,8 +353,8 @@ static bool rdp_ack_received(struct rdp_connection_s *conn, const uint8_t *inbuf
 
     if (conn->snd.dts != conn->snd.iss && hdr->acknowledgement_number == conn->snd.dts)
     {
-        conn->cbs->data_send_completed(conn);
         conn->snd.dts = conn->snd.iss;
+        conn->cbs->data_send_completed(conn);
     }
     return res;
 }

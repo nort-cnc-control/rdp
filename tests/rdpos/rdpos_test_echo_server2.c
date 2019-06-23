@@ -8,14 +8,14 @@
 #include <unistd.h> 
 #include <string.h> 
 #include <sys/types.h> 
+#include <sys/stat.h>
 
 int fd_in, fd_out;
 
 uint8_t received[RDP_MAX_SEGMENT_SIZE];
+size_t lenrecv;
 uint8_t inbuffer[RDP_MAX_SEGMENT_SIZE];
 uint8_t outbuffer[RDP_MAX_SEGMENT_SIZE];
-
-size_t lenrecv;
 
 int cnctd = 0;
 
@@ -36,11 +36,30 @@ void connected(struct rdp_connection_s *conn)
 void closed(struct rdp_connection_s *conn)
 {
     printf("Connection closed\n");
+    cnctd = 0;
 }
+
+static int ind = 0;
+static const char *msgs[] = {
+    "hello",
+    "world",
+    "baby",
+    NULL
+};
 
 void data_send_completed(struct rdp_connection_s *conn)
 {
-    printf("Data send completed\n");
+    if (msgs[ind] == NULL)
+    {
+        printf("Data send completed. Finish\n");
+        rdp_close(conn);
+    }
+    else
+    {
+        printf("Data send completed. Send next: %s\n", msgs[ind]);
+        rdp_send(conn, msgs[ind], strlen(msgs[ind]));
+        ind++;
+    }
 }
 
 void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len)
@@ -73,18 +92,29 @@ static struct rdpos_buffer_set_s bufs = {
     .serial_receive_buf_len = RDP_MAX_SEGMENT_SIZE,
 };
 
+
+struct rdpos_connection_s sconn;
+struct rdp_connection_s *conn = &sconn.rdp_conn;
+
+void send_msgs(void)
+{
+    rdp_send(conn, msgs[0], strlen(msgs[0]));
+    ind = 1;
+}
+
 int main(void)
 {
-    fd_out = open("pipe_clt_srv", O_RDWR);
-    fd_in = open("pipe_srv_clt", O_RDWR | O_NONBLOCK);
+    mkfifo("pipe_srv_clt", 0777);
+    mkfifo("pipe_clt_srv", 0777);
 
-    struct rdpos_connection_s sconn;
-    struct rdp_connection_s *conn = &sconn.rdp_conn;
+    fd_out = open("pipe_srv_clt", O_RDWR);
+    fd_in = open("pipe_clt_srv", O_RDWR | O_NONBLOCK);
 
+    
     rdpos_init_connection(&sconn, &bufs, &cbs, &scbs);
-    printf("state = %i\n", conn->state);
+    rdp_listen(conn, 1);
 
-    rdp_connect(conn, 1, 1);
+    printf("state = %i\n", conn->state);
 
     while (true)
     {
@@ -97,24 +127,23 @@ int main(void)
             continue;
         }
 
-        if (rand() < RAND_MAX / 100)
-	    {
-	        printf("Data loss\n");
-                continue;
-	    }
-
-        bool res = rdpos_byte_received(&sconn, b);
-        /*if (lenrecv > 0)
+	    bool res = rdpos_byte_received(&sconn, b);
+        if (cnctd)
         {
-            rdp_close(conn);
-            lenrecv = 0;
-        }*/
+            printf("Connected: state = %i\n", conn->state);
+            cnctd = 0;
+            send_msgs();
+        }
+
         if (conn->state == RDP_CLOSED)
         {
-            printf("Exit\n");
-            break;
+            printf("Closed: state = %i\n", conn->state);
+            rdp_listen(conn, 1);
+            printf("Listening: state = %i\n", conn->state); 
         }
     }
+
+    printf("Hello message sent.\n");  
 
     return 0;
 }
