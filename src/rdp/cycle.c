@@ -87,6 +87,8 @@ static bool rdp_send_syn(struct rdp_connection_s *conn, uint8_t src_port, uint8_
     conn->out_data_length = len; 
     conn->cbs->send(conn, conn->outbuf, len);
     conn->cbs->ack_wait_start(conn, conn->snd.una);
+    conn->wait_ack.time = 0;
+    conn->wait_ack.flag = 1;
     return true;
 }
 
@@ -115,6 +117,8 @@ static bool rdp_syn_received(struct rdp_connection_s *conn, uint8_t src_port, ui
         conn->out_data_length = len;
         conn->cbs->send(conn, conn->outbuf, len);
         conn->cbs->ack_wait_start(conn, conn->snd.una);
+        conn->wait_ack.time = 0;
+        conn->wait_ack.flag = 1;
         return true;
     }
     return false;
@@ -148,6 +152,7 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
 
             if (conn->snd.una == ack)
             {
+                conn->wait_ack.flag = 0;
                 conn->snd.una = conn->snd.iss;
                 conn->cbs->ack_wait_completed(conn, ack);
             }
@@ -186,6 +191,7 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
             conn->cbs->closed(conn);
             return true;
         case RDP_PASSIVE_CLOSE_WAIT:
+            conn->wait_ack.flag = 0;
             conn->cbs->ack_wait_completed(conn, conn->snd.una);
             len = rdp_build_rstack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
             conn->snd.una = conn->snd.nxt;
@@ -202,6 +208,7 @@ static bool rdp_rstack_received(struct rdp_connection_s *conn, uint32_t seq, uin
 {
     if (conn->snd.una == ack)
     {
+        conn->wait_ack.flag = 0;
         conn->snd.una = conn->snd.iss;
         conn->cbs->ack_wait_completed(conn, ack);
     }
@@ -244,6 +251,7 @@ static bool rdp_nulack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         conn->rcv.cur = seq;
         if (conn->snd.una == ack)
         {
+            conn->wait_ack.flag = 0;
             conn->snd.una = conn->snd.iss;
             conn->cbs->ack_wait_completed(conn, ack);
         }
@@ -265,6 +273,7 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
 {
     if (conn->snd.una == ack)
     {
+        conn->wait_ack.flag = 0;
         conn->snd.una = conn->snd.iss;
         conn->cbs->ack_wait_completed(conn, ack);
     }
@@ -304,6 +313,7 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
     }
     else if (ack == conn->snd.una)
     {
+        conn->wait_ack.flag = 0;
         conn->snd.una = conn->snd.iss;
         conn->cbs->ack_wait_completed(conn, ack);
     }
@@ -404,6 +414,10 @@ bool rdp_close(struct rdp_connection_s *conn)
     conn->cbs->send(conn, conn->outbuf, len);
     conn->cbs->ack_wait_start(conn, conn->snd.una);
     conn->cbs->close_wait_start(conn);
+    conn->wait_ack.time = 0;
+    conn->wait_ack.flag = 1;
+    conn->wait_close.time = 0;
+    conn->wait_close.flag = 1;
     return true;
 }
 
@@ -414,6 +428,8 @@ bool rdp_final_close(struct rdp_connection_s *conn)
     if (conn->state != RDP_ACTIVE_CLOSE_WAIT &&
         conn->state != RDP_PASSIVE_CLOSE_WAIT)
         return false;
+    conn->wait_ack.flag = 0;
+    conn->wait_close.flag = 0;
     conn->state = RDP_CLOSED;
     conn->cbs->closed(conn);
     return true;
@@ -433,6 +449,8 @@ bool rdp_send(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
     conn->out_data_length = len;
     conn->cbs->send(conn, conn->outbuf, len);
     conn->cbs->ack_wait_start(conn, conn->snd.una);
+    conn->wait_ack.time = 0;
+    conn->wait_ack.flag = 1;
     return true;
 }
 
@@ -490,4 +508,26 @@ bool rdp_can_send(struct rdp_connection_s *conn)
     if (conn->state != RDP_OPEN)
         return false;
     return (conn->snd.una == conn->snd.iss);
+}
+
+void rdp_clock(struct rdp_connection_s *conn, int dt)
+{
+    if (conn->wait_ack.flag)
+    {
+        conn->wait_ack.time += dt;
+        if (conn->wait_ack.time > RDP_RESEND_TIMEOUT)
+        {
+            conn->wait_ack.time = 0;
+            rdp_retry(conn);
+        }
+    }
+    if (conn->wait_close.flag)
+    {
+        conn->wait_close.time += dt;
+        if (conn->wait_close.time > RDP_CLOSE_TIMEOUT)
+        {
+            conn->wait_close.time = 0;
+            rdp_final_close(conn);
+        }
+    }
 }

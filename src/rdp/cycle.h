@@ -66,6 +66,16 @@ struct rdp_connection_s {
         uint32_t ack;
     } seg;
 
+    struct {
+        int time;
+        bool flag;
+    } wait_ack;
+
+    struct {
+        int time;
+        bool flag;
+    } wait_close;
+
     uint8_t *outbuf;
     uint8_t *recvbuf;
     size_t recvlen;
@@ -98,3 +108,5 @@ bool rdp_retry(struct rdp_connection_s *conn);
 void rdp_reset_connection(struct rdp_connection_s *conn);
 
 bool rdp_can_send(struct rdp_connection_s *conn);
+
+void rdp_clock(struct rdp_connection_s *conn, int dt);

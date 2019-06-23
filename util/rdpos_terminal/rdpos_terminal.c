@@ -172,6 +172,7 @@ void *receive(void *arg)
         ssize_t n = read(fd_in, &b, 1);
         if (n < 1)
             continue;
+        //printf("B");
         pthread_mutex_lock(&communication_lock);
         bool res = rdpos_byte_received(&sconn, b);
         pthread_mutex_unlock(&communication_lock);
