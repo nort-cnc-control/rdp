@@ -33,7 +33,6 @@ struct __attribute__((__packed__)) rdp_header_s {
     uint16_t data_length;
     uint32_t sequence_number;
     uint32_t acknowledgement_number;
-    uint32_t checksum;
 };
 
 size_t rdp_build_syn_package(uint8_t *buf, uint8_t src, uint8_t dst,

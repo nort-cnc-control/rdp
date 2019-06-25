@@ -2,49 +2,14 @@
 #include <packages.h>
 #include <packages_public.h>
 #include <string.h>
-#include <crc32.h>
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
-
-static size_t padded_len(size_t len)
-{
-    size_t len4 = (len / 4) * 4;
-    if (len4 < len)
-    {
-        int i;
-        size_t d = 4 - (len - len4);
-        len = len + d;
-    }
-    return len;
-}
-
-static size_t add_padding(uint8_t *buf, size_t len)
-{
-    size_t plen = padded_len(len);
-    int i;
-    for (i = len; i < plen; i++)
-        buf[i] = 0;
-    return plen;
-}
-
-static void fill_crc(uint8_t *buf)
-{
-    struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
-    size_t hlen = (hdr->header_length)*2;
-    size_t dlen = hdr->data_length;
-    size_t len = hlen + dlen;
-    
-    uint32_t crc = 0;
-    hdr->checksum = crc;
-    size_t plen = add_padding(buf, len);
-    crc = crc32(0, buf, plen);
-    hdr->checksum = crc;
-}
+#define RDP_BASE_HEADER_LEN 14
 
 size_t rdp_build_syn_package(uint8_t *buf, uint8_t src, uint8_t dst,
                              uint32_t initial_seq)
 {
-    const size_t var = 18;
+    const size_t var = RDP_BASE_HEADER_LEN;
     const size_t hlen = var + 6;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
     memset(hdr, 0, sizeof(*hdr));
@@ -69,15 +34,13 @@ size_t rdp_build_syn_package(uint8_t *buf, uint8_t src, uint8_t dst,
 
     uint16_t *flags = (uint16_t *)(buf + var + 4);
     *flags = RDP_SDM;
-
-    fill_crc(buf);
     return hlen;
 }
 
 size_t rdp_build_synack_package(uint8_t *buf, uint8_t src, uint8_t dst,
                                 uint32_t initial_seq, uint32_t rcv_seq)
 {
-    const size_t var = 18;
+    const size_t var = RDP_BASE_HEADER_LEN;
     const size_t hlen = var + 6;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
     memset(hdr, 0, sizeof(*hdr));
@@ -102,8 +65,6 @@ size_t rdp_build_synack_package(uint8_t *buf, uint8_t src, uint8_t dst,
 
     uint16_t *flags = (uint16_t *)(buf + var + 4);
     *flags = RDP_SDM;
-
-    fill_crc(buf);
     return hlen;
 }
 
@@ -111,7 +72,7 @@ size_t rdp_build_ack_package(uint8_t *buf, uint8_t src, uint8_t dst,
                              uint32_t cur_seq, uint32_t rcv_seq,
                              const uint8_t *data, size_t dlen)
 {
-    const size_t var = 18;
+    const size_t var = RDP_BASE_HEADER_LEN;
     const size_t hlen = var;
     if (hlen + dlen > RDP_MAX_SEGMENT_SIZE)
         return 0;
@@ -134,15 +95,13 @@ size_t rdp_build_ack_package(uint8_t *buf, uint8_t src, uint8_t dst,
 
     if (dlen > 0)
         memcpy(buf + hlen, data, dlen);
-
-    fill_crc(buf);
     return hlen + dlen;
 }
 
 size_t rdp_build_rstack_package(uint8_t *buf, uint8_t src, uint8_t dst,
                                 uint32_t cur_seq, uint32_t rcv_seq)
 {
-    const size_t var = 18;
+    const size_t var = RDP_BASE_HEADER_LEN;
     const size_t hlen = var;
     
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
@@ -160,8 +119,6 @@ size_t rdp_build_rstack_package(uint8_t *buf, uint8_t src, uint8_t dst,
 
     hdr->sequence_number = cur_seq;
     hdr->acknowledgement_number = rcv_seq;
-
-    fill_crc(buf);
     return hlen;
 }
 
@@ -172,7 +129,7 @@ size_t rdb_build_eack_package(uint8_t *buf, uint8_t src, uint8_t dst,
                               const uint8_t *data, size_t dlen)
 {
     nacks = min(nacks, RDP_MAX_OUTSTANGING);
-    const size_t var = 18;
+    const size_t var = RDP_BASE_HEADER_LEN;
     const size_t hlen = var + nacks * 4;
     if (hlen + dlen > RDP_MAX_SEGMENT_SIZE)
         return 0;
@@ -202,15 +159,13 @@ size_t rdb_build_eack_package(uint8_t *buf, uint8_t src, uint8_t dst,
 
     if (dlen > 0)
         memcpy(buf + hlen, data, dlen);
-
-    fill_crc(buf);
     return hlen + dlen;
 }
 
 size_t rdb_build_rst_package(uint8_t *buf, uint8_t src, uint8_t dst,
                              uint32_t cur_seq, uint32_t rcv_seq)
 {
-    const size_t var = 18;
+    const size_t var = RDP_BASE_HEADER_LEN;
     const size_t hlen = var;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
     memset(hdr, 0, sizeof(*hdr));
@@ -226,15 +181,13 @@ size_t rdb_build_rst_package(uint8_t *buf, uint8_t src, uint8_t dst,
     hdr->data_length = 0;
     hdr->sequence_number = cur_seq;
     hdr->acknowledgement_number = rcv_seq;
-
-    fill_crc(buf);
     return hlen;
 }
 
 size_t rdb_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
                              uint32_t cur_seq)
 {
-    const size_t var = 18;
+    const size_t var = RDP_BASE_HEADER_LEN;
     const size_t hlen = var;
     struct rdp_header_s *hdr = (struct rdp_header_s *)buf;
     memset(hdr, 0, sizeof(*hdr));
@@ -250,8 +203,6 @@ size_t rdb_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
     hdr->data_length = 0;
     hdr->sequence_number = cur_seq;
     hdr->acknowledgement_number = 0;
-
-    fill_crc(buf);
     return hlen;
 }
 
