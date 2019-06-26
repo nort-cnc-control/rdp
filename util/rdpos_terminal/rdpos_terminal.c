@@ -121,6 +121,11 @@ void handle_exit(int signo)
     }
 }
 
+void rdpclock(union sigval sig)
+{
+    rdp_clock(conn, 1000);
+}
+
 int main(int argc, const char **argv)
 {
     pthread_attr_t attr; /* отрибуты потока */
@@ -146,6 +151,24 @@ int main(int argc, const char **argv)
 
     pthread_attr_init(&attr);
     pthread_create(&tid, &attr, receive, NULL);
+
+    timer_t timer;
+    struct sigevent sevt = {
+        .sigev_notify = SIGEV_THREAD,
+        .sigev_notify_function = rdpclock,
+    };
+    timer_create(CLOCK_REALTIME, &sevt, &timer);
+    struct itimerspec interval = {
+        .it_interval = {
+            .tv_sec = 0,
+            .tv_nsec = 1000000UL,
+        },
+        .it_value = {
+            .tv_sec = 0,
+            .tv_nsec = 1000000UL,
+        }
+    };
+    timer_settime(timer, 0, &interval, NULL);
 
     usleep(100000);
 

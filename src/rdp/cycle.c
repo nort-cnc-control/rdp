@@ -105,6 +105,7 @@ static bool rdp_syn_received(struct rdp_connection_s *conn, uint8_t src_port, ui
     {
         conn->state = RDP_SYN_RCVD;
 
+        conn->rcv.dts = seq;
         conn->rcv.irs = seq;
         conn->rcv.cur = seq;
         conn->rcv.expect = seq + 1;
@@ -414,13 +415,14 @@ void rdp_reset_connection(struct rdp_connection_s *conn)
     conn->wait_ack.flag = 0;
     conn->wait_close.flag = 0;
     conn->state = RDP_CLOSED;
+    conn->snd.iss = 1;
 }
 
 bool rdp_listen(struct rdp_connection_s *conn, uint8_t port)
 {
     if (conn->state != RDP_CLOSED)
         return false;
-    conn->snd.dts = conn->snd.iss;        
+    conn->snd.dts = conn->snd.iss;
     conn->snd.nxt = conn->snd.iss + 1;
     conn->snd.una = conn->snd.iss;
     conn->local_port = port;
