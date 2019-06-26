@@ -50,6 +50,9 @@ struct rdp_connection_s {
 
         // The sequence number of the last received package with data
         uint32_t dts;
+
+        // expected next seq
+        uint32_t expect;
     } rcv;
 
     // A timer used to time out the CLOSE-WAIT state.

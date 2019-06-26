@@ -85,13 +85,14 @@ void *receive(void *arg)
     while (!clsd)
     {
         unsigned char b;
-        ssize_t n = read(fd, &b, 1);
+        int n = read(fd, &b, 1);
         if (n < 1)
         {
-            rdp_clock(conn, 100000UL);
+            usleep(100);
             continue;
         }
-        printf("%02X ", b);
+        //printf("%02X ", b);
+        //fflush(stdout);
         pthread_mutex_lock(&communication_lock);
         bool res = rdpos_byte_received(&sconn, b);
         pthread_mutex_unlock(&communication_lock);
@@ -128,36 +129,14 @@ int main(int argc, const char **argv)
     speed_t brate = B115200;
     int rdp_port = 1;
 
-    fd = open(serial_port, O_RDWR | O_NOCTTY | O_SYNC);
+    printf("Opening %s\n", serial_port);
+    fd = open(serial_port, O_RDWR | O_NOCTTY | O_NDELAY);
 
-    struct termios tty;
-    tcgetattr(fd, &tty);
-
-    cfsetospeed(&tty, brate); /* baud rate */
-    cfsetispeed(&tty, brate); /* baud rate */
-    
-    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
-    // disable IGNBRK for mismatched speed tests; otherwise receive break
-    // as \000 chars
-    tty.c_iflag &= ~IGNBRK;         // disable break processing
-    tty.c_lflag = 0;                // no signaling chars, no echo,
-                                        // no canonical processing
-    tty.c_oflag = 0;                // no remapping, no delays
-    tty.c_cc[VMIN]  = 0;            // read doesn't block
-    tty.c_cc[VTIME] = 1;            // 0.1 seconds read timeout
-
-    tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
-
-    tty.c_cflag |= (CLOCAL | CREAD);// ignore modem controls,
-                                        // enable reading
-    tty.c_cflag &= ~(PARENB | PARODD);      // shut off parity
-    tty.c_cflag &= ~CSTOPB;
-
-    tty.c_cc[VMIN]  = 0;            // non block
-    tty.c_cc[VTIME] = 1;            // 0.1 seconds read timeout
-    
-    tcsetattr(fd, TCSANOW, &tty); /* apply the settings */
-    tcflush(fd, TCOFLUSH);
+    if (fd <= 0)
+    {
+        printf("Error opening\n");
+        return 0;
+    }
 
     rdpos_init_connection(&sconn, &bufs, &cbs, &scbs);
 

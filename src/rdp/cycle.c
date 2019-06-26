@@ -107,7 +107,8 @@ static bool rdp_syn_received(struct rdp_connection_s *conn, uint8_t src_port, ui
 
         conn->rcv.irs = seq;
         conn->rcv.cur = seq;
-
+        conn->rcv.expect = seq + 1;
+        
         conn->snd.nxt = conn->snd.iss + 1;
 
         size_t len = rdp_build_synack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
@@ -129,8 +130,6 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
     {
         case RDP_OPEN:
         case RDP_SYN_SENT:
-            conn->state = RDP_OPEN;
-            conn->rcv.cur = seq;
             if (conn->snd.una == ack)
             {
                 conn->snd.una = conn->snd.iss;
@@ -140,6 +139,10 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
             {
                 return false;
             }
+            conn->state = RDP_OPEN;
+            conn->rcv.cur = seq;
+            conn->rcv.expect = seq + 1;
+            
             size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
 
             conn->out_data_length = len;
@@ -147,8 +150,6 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
             conn->cbs->connected(conn);
             return true;
         case RDP_SYN_RCVD:
-            conn->state = RDP_OPEN;
-
             if (conn->snd.una == ack)
             {
                 conn->wait_ack.flag = 0;
@@ -158,7 +159,7 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
             {
                 return false;
             }
-
+            conn->state = RDP_OPEN;
             conn->rcv.cur = seq;
             conn->cbs->connected(conn);
             return true;
@@ -171,10 +172,15 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
 static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
 {
     size_t len;
+    if (conn->rcv.expect != seq)
+    {
+        return false;
+    }
     switch(conn->state)
     {
         case RDP_OPEN:
             conn->rcv.cur = seq;
+            conn->rcv.expect = seq + 1;
             conn->state = RDP_PASSIVE_CLOSE_WAIT;
             len = rdp_build_rstack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
             conn->snd.una = conn->snd.nxt;
@@ -187,6 +193,8 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
             conn->cbs->closed(conn);
             return true;
         case RDP_PASSIVE_CLOSE_WAIT:
+            conn->rcv.cur = seq;
+            conn->rcv.expect = seq + 1;
             conn->wait_ack.flag = 0;
             len = rdp_build_rstack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
             conn->snd.una = conn->snd.nxt;
@@ -200,6 +208,10 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
 
 static bool rdp_rstack_received(struct rdp_connection_s *conn, uint32_t seq, uint32_t ack)
 {
+    if (conn->rcv.expect != seq)
+    {
+        return false;
+    }
     if (conn->snd.una == ack)
     {
         conn->wait_ack.flag = 0;
@@ -210,6 +222,7 @@ static bool rdp_rstack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         return false;
     }
     conn->rcv.cur = seq;
+    conn->rcv.expect = seq + 1;
     if (conn->state == RDP_ACTIVE_CLOSE_WAIT)
     {
         conn->state = RDP_CLOSED;
@@ -273,7 +286,12 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
         return false;
     }
     
+    if (conn->rcv.expect != seq)
+    {
+        return false;
+    }
     conn->rcv.cur = seq;
+    conn->rcv.expect = seq;
     switch(conn->state)
     {
         case RDP_SYN_RCVD:
@@ -293,11 +311,17 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
 
 static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, uint32_t ack, const uint8_t *data, size_t dlen)
 {
+    
     /*
     printf("ack = %i\n", ack);
     printf("una = %i\n", conn->snd.una);
     printf("iss = %i\n", conn->snd.iss);
     */
+   if (conn->rcv.expect != seq)
+    {
+        return false;
+    }
+    
     if (conn->snd.una == conn->snd.iss)
     {
         // ok
@@ -318,6 +342,7 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
         
     bool rcvd = false;
     conn->rcv.cur = seq;
+    conn->rcv.expect = seq + 1;
     switch (conn->state)
     {
         case RDP_OPEN:
