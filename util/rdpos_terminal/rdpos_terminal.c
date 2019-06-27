@@ -24,11 +24,11 @@ void send_serial(void *arg, const void *data, size_t dlen)
 {
     int i;
     struct rdpos_connection_s *conn = arg;
-    printf("\nSending %i bytes\n", dlen);
-    for (i = 0; i < dlen; i++)
-        printf("%02X ", ((const uint8_t*)data)[i]);
-    printf("\n");
-    printf("state = %i\n", conn->rdp_conn.state);
+    //printf("\nSending %i bytes\n", dlen);
+    //for (i = 0; i < dlen; i++)
+    //    printf("%02X ", ((const uint8_t*)data)[i]);
+    //printf("\n");
+    //printf("state = %i\n", conn->rdp_conn.state);
     write(fd, data, dlen);
 }
 
