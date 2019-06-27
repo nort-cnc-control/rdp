@@ -8,6 +8,8 @@ uint8_t inbuf1[RDP_MAX_SEGMENT_SIZE], inbuf2[RDP_MAX_SEGMENT_SIZE];
 uint8_t outbuf1[RDP_MAX_SEGMENT_SIZE], outbuf2[RDP_MAX_SEGMENT_SIZE];
 uint8_t tmp1[RDP_MAX_SEGMENT_SIZE], tmp2[RDP_MAX_SEGMENT_SIZE];
 
+static bool dsc1, dsc2;
+
 void send_buf(struct rdp_connection_s *conn, const uint8_t *data, size_t len)
 {
     if (conn == &conn1)
@@ -54,10 +56,12 @@ void data_send_completed(struct rdp_connection_s *conn)
 {
     if (conn == &conn1)
     {
+        dsc1 = true;
         printf("Connection 1 send completed\n");
     }
     else
     {
+        dsc2 = true;
         printf("Connection 2 send completed\n");
     }
 }
@@ -575,6 +579,165 @@ void test_data_send_packet_lost_2(void)
     close_connecions();
 }
 
+void test_data_send_keepalive_1(void)
+{
+    bool res;
+    int i;
+    printf("\nTEST: data send keepalive 1\n\n");
+    open_connections();
+    dsc1 = false;
+    
+    printf("*****\n");
+
+    // Keepalive packet
+    rdp_clock(&conn1, 6000000);
+    rdp_clock(&conn2, 6000000);
+
+    memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
+    memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
+
+    res = rdp_received(&conn2, tmp1);
+    assert(res);
+
+    res = rdp_received(&conn1, tmp2);
+    assert(res);
+
+    memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
+    memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
+
+    res = rdp_received(&conn2, tmp1);
+    assert(res);
+
+    res = rdp_received(&conn1, tmp2);
+    assert(res);
+
+    uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    size_t dlen = sizeof(data);
+
+    res = rdp_send(&conn1, data, dlen);
+    assert(res);
+    
+    res = rdp_received(&conn2, outbuf1);
+    assert(res);
+    assert(rcvd == dlen);
+    assert(!memcmp(data, inbuf2, dlen));
+    rcvd = 0;
+
+    res = rdp_received(&conn1, outbuf2);
+    assert(res);
+    assert(rcvd == 0);
+
+    assert(dsc1 == true);
+
+    printf("*****\n");
+    close_connecions();
+}
+
+void test_data_send_keepalive_2(void)
+{
+    bool res;
+    int i;
+    printf("\nTEST: data send keepalive 2\n\n");
+    open_connections();
+    dsc2 = false;
+    
+    printf("*****\n");
+
+    // Keepalive packet
+    rdp_clock(&conn1, 6000000);
+    rdp_clock(&conn2, 6000000);
+
+    memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
+    memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
+
+    res = rdp_received(&conn2, tmp1);
+    assert(res);
+
+    res = rdp_received(&conn1, tmp2);
+    assert(res);
+
+    memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
+    memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
+
+    res = rdp_received(&conn2, tmp1);
+    assert(res);
+
+    res = rdp_received(&conn1, tmp2);
+    assert(res);
+
+    uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    size_t dlen = sizeof(data);
+
+    res = rdp_send(&conn2, data, dlen);
+    assert(res);
+    
+    res = rdp_received(&conn1, outbuf2);
+    assert(res);
+    assert(rcvd == dlen);
+    assert(!memcmp(data, inbuf1, dlen));
+    rcvd = 0;
+
+    res = rdp_received(&conn2, outbuf1);
+    assert(res);
+    assert(rcvd == 0);
+
+    assert(dsc2 == true);
+
+    printf("*****\n");
+    close_connecions();
+}
+
+void test_data_send_keepalive_3(void)
+{
+    bool res;
+    int i;
+    printf("\nTEST: data send keepalive 3\n\n");
+    open_connections();
+    dsc1 = false;
+    
+    printf("*****\n");
+
+    // Keepalive packet
+    rdp_clock(&conn1, 6000000);
+
+    res = rdp_received(&conn2, outbuf1);
+    assert(res);
+
+    res = rdp_received(&conn1, outbuf2);
+    assert(res);
+
+    rdp_clock(&conn2, 6000000);
+
+    res = rdp_received(&conn1, outbuf2);
+    assert(res);
+
+    res = rdp_received(&conn2, outbuf1);
+    assert(res);
+
+
+    uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    size_t dlen = sizeof(data);
+
+    res = rdp_send(&conn1, data, dlen);
+    assert(res);
+    
+    res = rdp_received(&conn2, outbuf1);
+    assert(res);
+    assert(rcvd == dlen);
+    assert(!memcmp(data, inbuf2, dlen));
+    rcvd = 0;
+
+    res = rdp_received(&conn1, outbuf2);
+    assert(res);
+    assert(rcvd == 0);
+
+    assert(dsc1 == true);
+
+    printf("*****\n");
+    close_connecions();
+}
+
+
 int main(void)
 {
     test_connect_listen();
@@ -584,5 +747,8 @@ int main(void)
     test_data_send();
     test_data_send_packet_lost_1();
     test_data_send_packet_lost_2();
+    test_data_send_keepalive_1();
+    test_data_send_keepalive_2();
+    test_data_send_keepalive_3();
     return 0;
 }

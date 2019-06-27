@@ -16,3 +16,8 @@
 // Resend timeout
 #define RDP_RESEND_TIMEOUT 100000
 
+// Keepalive timeout
+#define RDP_KEEPALIVE_TIMEOUT 10000000
+
+// Keepalive packet send timeout
+#define RDP_KEEPALIVE_SEND_TIMEOUT 5000000

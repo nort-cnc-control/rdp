@@ -184,8 +184,8 @@ size_t rdb_build_rst_package(uint8_t *buf, uint8_t src, uint8_t dst,
     return hlen;
 }
 
-size_t rdb_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
-                             uint32_t cur_seq)
+size_t rdp_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
+                             uint32_t cur_seq, uint32_t ack)
 {
     const size_t var = RDP_BASE_HEADER_LEN;
     const size_t hlen = var;
@@ -202,7 +202,7 @@ size_t rdb_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
     hdr->destination_port = dst;
     hdr->data_length = 0;
     hdr->sequence_number = cur_seq;
-    hdr->acknowledgement_number = 0;
+    hdr->acknowledgement_number = ack;
     return hlen;
 }
 

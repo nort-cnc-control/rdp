@@ -53,8 +53,8 @@ size_t rdb_build_eack_package(uint8_t *buf, uint8_t src, uint8_t dst,
 size_t rdb_build_rst_package(uint8_t *buf, uint8_t src, uint8_t dst,
                              uint32_t cur_seq, uint32_t rcv_seq);
 
-size_t rdb_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
-                             uint32_t cur_seq);
+size_t rdp_build_nul_package(uint8_t *buf, uint8_t src, uint8_t dst,
+                             uint32_t cur_seq, uint32_t ack);
 
 size_t rdp_build_rstack_package(uint8_t *buf, uint8_t src, uint8_t dst,
                                 uint32_t cur_seq, uint32_t rcv_seq);

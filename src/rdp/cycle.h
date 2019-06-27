@@ -76,6 +76,16 @@ struct rdp_connection_s {
         bool flag;
     } wait_close;
 
+    struct {
+        int time;
+        bool flag;
+    } wait_keepalive;
+
+    struct {
+        int time;
+        bool flag;
+    } wait_keepalive_send;
+
     uint8_t *outbuf;
     uint8_t *recvbuf;
     size_t recvlen;

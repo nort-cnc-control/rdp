@@ -149,9 +149,6 @@ int main(int argc, const char **argv)
     pthread_cond_init(&connected_flag, NULL);
     pthread_mutex_init(&communication_lock, NULL);
 
-    pthread_attr_init(&attr);
-    pthread_create(&tid, &attr, receive, NULL);
-
     timer_t timer;
     struct sigevent sevt = {
         .sigev_notify = SIGEV_THREAD,
@@ -175,6 +172,9 @@ int main(int argc, const char **argv)
     pthread_mutex_lock(&communication_lock);
     rdp_connect(conn, 1, 1);
     pthread_mutex_unlock(&communication_lock);
+
+    pthread_attr_init(&attr);
+    pthread_create(&tid, &attr, receive, NULL);
 
     pthread_cond_wait(&connected_flag, &mp);
 
