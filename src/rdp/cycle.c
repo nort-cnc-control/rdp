@@ -84,7 +84,8 @@ static bool rdp_send_nul(struct rdp_connection_s *conn)
     size_t len = rdp_build_nul_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
     conn->snd.una = conn->snd.nxt;
     //printf("SEND CLOCK. Set una = %i\n", conn->snd.una);
-    conn->cbs->send(conn, conn->outbuf, len);
+    if (conn->cbs.send)
+        conn->cbs.send(conn, conn->outbuf, len);
     conn->wait_ack.time = 0;
     conn->wait_ack.flag = 1;
     conn->wait_keepalive_send.time = 0;
@@ -107,8 +108,9 @@ static bool rdp_send_syn(struct rdp_connection_s *conn, uint8_t src_port, uint8_
     conn->snd.una = conn->snd.nxt;
     conn->snd.nxt++;
     
-    conn->out_data_length = len; 
-    conn->cbs->send(conn, conn->outbuf, len);
+    conn->out_data_length = len;
+    if (conn->cbs.send)
+        conn->cbs.send(conn, conn->outbuf, len);
     conn->wait_ack.time = 0;
     conn->wait_ack.flag = 1;
     return true;
@@ -142,7 +144,8 @@ static bool rdp_syn_received(struct rdp_connection_s *conn, uint8_t src_port, ui
         conn->snd.nxt++;
         
         conn->out_data_length = len;
-        conn->cbs->send(conn, conn->outbuf, len);
+        if (conn->cbs.send)
+            conn->cbs.send(conn, conn->outbuf, len);
         conn->wait_ack.time = 0;
         conn->wait_ack.flag = 1;
         return true;
@@ -172,13 +175,15 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
             size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
 
             conn->out_data_length = len;
-            conn->cbs->send(conn, conn->outbuf, len);
+            if (conn->cbs.send)
+                conn->cbs.send(conn, conn->outbuf, len);
             if (conn->state != RDP_OPEN)
             {
                 conn->state = RDP_OPEN;
                 conn->wait_keepalive_send.time = 0;
                 conn->wait_keepalive_send.flag = 1;
-                conn->cbs->connected(conn);
+                if (conn->cbs.connected)
+                    conn->cbs.connected(conn);
             }
             return true;
         case RDP_SYN_RCVD:
@@ -193,7 +198,8 @@ static bool rdp_synack_received(struct rdp_connection_s *conn, uint32_t seq, uin
             }
             conn->state = RDP_OPEN;
             conn->rcv.cur = seq;
-            conn->cbs->connected(conn);
+            if (conn->cbs.connected)
+                conn->cbs.connected(conn);
             return true;
         default:
             return false;
@@ -219,11 +225,13 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
             conn->snd.una = conn->snd.nxt;
             conn->snd.nxt++;
             conn->out_data_length = len;
-            conn->cbs->send(conn, conn->outbuf, len);
+            if (conn->cbs.send)
+                conn->cbs.send(conn, conn->outbuf, len);
             return true;
         case RDP_ACTIVE_CLOSE_WAIT:
             conn->state = RDP_CLOSED;
-            conn->cbs->closed(conn);
+            if (conn->cbs.closed)
+                conn->cbs.closed(conn);
             return true;
         case RDP_PASSIVE_CLOSE_WAIT:
             conn->rcv.cur = seq;
@@ -233,7 +241,8 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
             conn->snd.una = conn->snd.nxt;
             conn->snd.nxt++;
             conn->out_data_length = len;
-            conn->cbs->send(conn, conn->outbuf, len);
+            if (conn->cbs.send)
+                conn->cbs.send(conn, conn->outbuf, len);
             return true;
     }
     return false;
@@ -262,8 +271,10 @@ static bool rdp_rstack_received(struct rdp_connection_s *conn, uint32_t seq, uin
         size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
 
         conn->out_data_length = len;
-        conn->cbs->send(conn, conn->outbuf, len);
-        conn->cbs->closed(conn);
+        if (conn->cbs.send)
+            conn->cbs.send(conn, conn->outbuf, len);
+        if (conn->cbs.closed)
+            conn->cbs.closed(conn);
         return true;
     }
     return false;
@@ -282,7 +293,8 @@ static bool rdp_nul_received(struct rdp_connection_s *conn, uint32_t seq)
         size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
         
         conn->out_data_length = len;
-        conn->cbs->send(conn, conn->outbuf, len);
+        if (conn->cbs.send)
+            conn->cbs.send(conn, conn->outbuf, len);
         return true;
     }
     return false;
@@ -297,13 +309,15 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
             conn->state = RDP_OPEN;
             conn->wait_keepalive_send.time = 0;
             conn->wait_keepalive_send.flag = 1;
-            conn->cbs->connected(conn);
+            if (conn->cbs.connected)
+                conn->cbs.connected(conn);
             return true;
         case RDP_OPEN:
             return true;
         case RDP_PASSIVE_CLOSE_WAIT:
             conn->state = RDP_CLOSED;
-            conn->cbs->closed(conn);
+            if (conn->cbs.closed)
+                conn->cbs.closed(conn);
             return true;
         default:
             return false;
@@ -323,11 +337,13 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
             }
             size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
             conn->out_data_length = len;
-            conn->cbs->send(conn, conn->outbuf, len);
+            if (conn->cbs.send)
+                conn->cbs.send(conn, conn->outbuf, len);
             return true;
         case RDP_PASSIVE_CLOSE_WAIT:
             conn->state = RDP_CLOSED;
-            conn->cbs->closed(conn);
+            if (conn->cbs.closed)
+                conn->cbs.closed(conn);
             return true;
         default:
             return false;
@@ -384,7 +400,8 @@ static bool rdp_ack_received(struct rdp_connection_s *conn, const uint8_t *inbuf
     {
         //printf("COMPLETED\n");
         conn->snd.dts = conn->snd.iss;
-        conn->cbs->data_send_completed(conn);
+        if (conn->cbs.data_send_completed)
+            conn->cbs.data_send_completed(conn);
     }
     else
     {
@@ -394,42 +411,65 @@ static bool rdp_ack_received(struct rdp_connection_s *conn, const uint8_t *inbuf
     if (rcvd)
     {
         conn->rcv.dts = seq;
-        conn->cbs->data_received(conn, conn->recvbuf, pdlen);
+        if (conn->cbs.data_received)
+            conn->cbs.data_received(conn, conn->recvbuf, pdlen);
     }
     return res;
 }
 
-// Connection operations
+// Initialization
 
-void rdp_init_connection(struct rdp_connection_s *conn,
-                         uint8_t *outbuf, uint8_t *recvbuf,
-                         struct rdp_cbs_s *cbs,
-                         void *user_arg)
+void rdp_init_connection(struct rdp_connection_s *conn, uint8_t *outbuf, uint8_t *recvbuf)
 {
+    memset(conn, 0, sizeof(*conn));
     rdp_reset_connection(conn);
-    conn->snd.iss = 1;
     conn->outbuf = outbuf;
     conn->recvbuf = recvbuf;
-    conn->recvlen = 0;
-    conn->cbs = cbs;
-    conn->user_arg = user_arg;
-    conn->wait_ack.flag = 0;
-    conn->wait_close.flag = 0;
-    conn->wait_keepalive.flag = 0;
-    conn->wait_keepalive_send.flag = 0;
+    conn->snd.iss = 1;
 }
+
+void rdp_set_send_cb(struct rdp_connection_s *conn, void (*send)(struct rdp_connection_s *, const uint8_t *, size_t))
+{
+    conn->cbs.send = send;
+}
+
+void rdp_set_connected_cb(struct rdp_connection_s *conn, void (*connected)(struct rdp_connection_s *))
+{
+    conn->cbs.connected = connected;
+}
+
+void rdp_set_closed_cb(struct rdp_connection_s *conn, void (*closed)(struct rdp_connection_s *))
+{
+    conn->cbs.closed = closed;
+}
+
+void rdp_set_data_send_completed_cb(struct rdp_connection_s *conn, void (*data_send_completed)(struct rdp_connection_s *))
+{
+    conn->cbs.data_send_completed = data_send_completed;
+}
+
+void rdp_set_data_received_cb(struct rdp_connection_s *conn, void (*data_received)(struct rdp_connection_s *, const uint8_t *, size_t))
+{
+    conn->cbs.data_received = data_received;
+}
+
+void rdp_set_user_argument(struct rdp_connection_s *conn, void *user_arg)
+{
+    conn->user_arg = user_arg;
+}
+
+// Connection operations
+
 
 void rdp_reset_connection(struct rdp_connection_s *conn)
 {
     memset(&conn->snd, 0, sizeof(conn->snd));
     memset(&conn->rcv, 0, sizeof(conn->rcv));
-    memset(&conn->seg, 0, sizeof(conn->seg));
     conn->wait_ack.flag = 0;
     conn->wait_close.flag = 0;
     conn->wait_keepalive.flag = 0;
     conn->wait_keepalive_send.flag = 0;
     conn->state = RDP_CLOSED;
-    conn->snd.iss = 1;
 }
 
 bool rdp_listen(struct rdp_connection_s *conn, uint8_t port)
@@ -460,7 +500,8 @@ bool rdp_close(struct rdp_connection_s *conn)
     conn->snd.una = conn->snd.nxt;
     conn->snd.nxt++;
     conn->out_data_length = len;
-    conn->cbs->send(conn, conn->outbuf, len);
+    if (conn->cbs.send)
+        conn->cbs.send(conn, conn->outbuf, len);
     conn->wait_ack.time = 0;
     conn->wait_ack.flag = 1;
     conn->wait_close.time = 0;
@@ -481,7 +522,8 @@ bool rdp_final_close(struct rdp_connection_s *conn)
     conn->wait_close.flag = 0;
     conn->wait_keepalive_send.flag = 0;
     conn->state = RDP_CLOSED;
-    conn->cbs->closed(conn);
+    if (conn->cbs.closed)
+        conn->cbs.closed(conn);
     return true;
 }
 
@@ -499,7 +541,8 @@ bool rdp_send(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
     conn->snd.dts = conn->snd.nxt;
     conn->snd.nxt++;
     conn->out_data_length = len;
-    conn->cbs->send(conn, conn->outbuf, len);
+    if (conn->cbs.send)
+        conn->cbs.send(conn, conn->outbuf, len);
     conn->wait_ack.time = 0;
     conn->wait_ack.flag = 1;
     conn->wait_keepalive_send.time = 0;
@@ -552,7 +595,8 @@ bool rdp_received(struct rdp_connection_s *conn, const uint8_t *inbuf)
 
 bool rdp_retry(struct rdp_connection_s *conn)
 {
-    conn->cbs->send(conn, conn->outbuf, conn->out_data_length);
+    if (conn->cbs.send)
+        conn->cbs.send(conn, conn->outbuf, conn->out_data_length);
     return true;
 }
 

@@ -59,14 +59,6 @@ struct rdp_connection_s {
     uint32_t closewait;
 
     struct {
-        // The sequence number of the segment currently being processed.
-        uint32_t seq;
-
-        // The acknowledgement sequence number in the segment currently being processed.
-        uint32_t ack;
-    } seg;
-
-    struct {
         int time;
         bool flag;
     } wait_ack;
@@ -92,31 +84,28 @@ struct rdp_connection_s {
     size_t out_data_length;
     uint8_t local_port;
     uint8_t remote_port;
-    struct rdp_cbs_s *cbs;
+    struct rdp_cbs_s cbs;
     void *user_arg;
 };
 
-void rdp_init_connection(struct rdp_connection_s *conn,
-                         uint8_t *outbuf, uint8_t *recvbuf,
-                         struct rdp_cbs_s *cbs,
-                         void *user_arg);
+void rdp_init_connection(struct rdp_connection_s *conn, uint8_t *outbuf, uint8_t *recvbuf);
+void rdp_reset_connection(struct rdp_connection_s *conn);
+
+void rdp_set_send_cb(struct rdp_connection_s *conn, void (*send)(struct rdp_connection_s *, const uint8_t *, size_t));
+void rdp_set_connected_cb(struct rdp_connection_s *conn, void (*connected)(struct rdp_connection_s *));
+void rdp_set_closed_cb(struct rdp_connection_s *conn, void (*closed)(struct rdp_connection_s *));
+void rdp_set_data_send_completed_cb(struct rdp_connection_s *conn, void (*data_send_completed)(struct rdp_connection_s *));
+void rdp_set_data_received_cb(struct rdp_connection_s *conn, void (*data_received)(struct rdp_connection_s *, const uint8_t *, size_t));
+
+void rdp_set_user_argument(struct rdp_connection_s *conn, void *user_arg);
 
 bool rdp_listen(struct rdp_connection_s *conn, uint8_t port);
-
 bool rdp_connect(struct rdp_connection_s *conn, uint8_t src_port, uint8_t dst_port);
-
 bool rdp_close(struct rdp_connection_s *conn);
 
 bool rdp_send(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen);
+bool rdp_can_send(struct rdp_connection_s *conn);
 
 bool rdp_received(struct rdp_connection_s *conn, const uint8_t *inbuf);
-
-bool rdp_final_close(struct rdp_connection_s *conn);
-
-bool rdp_retry(struct rdp_connection_s *conn);
-
-void rdp_reset_connection(struct rdp_connection_s *conn);
-
-bool rdp_can_send(struct rdp_connection_s *conn);
 
 void rdp_clock(struct rdp_connection_s *conn, int dt);

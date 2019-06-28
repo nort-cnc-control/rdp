@@ -95,10 +95,22 @@ struct rdp_cbs_s cbs = {
     .data_received = data_received,
 };
 
+static void set_cbs(struct rdp_connection_s *conn)
+{
+    rdp_set_closed_cb(conn, closed);
+    rdp_set_connected_cb(conn, connected);
+    rdp_set_data_received_cb(conn, data_received);
+    rdp_set_data_send_completed_cb(conn, data_send_completed);
+    rdp_set_send_cb(conn, send_buf);
+}
+
 void open_connections(void)
 {
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
+    rdp_init_connection(&conn1, outbuf1, inbuf1);
+    rdp_init_connection(&conn2, outbuf2, inbuf2);
+
+    set_cbs(&conn1);
+    set_cbs(&conn2);
 
     printf("C2 - listen\n");
     rdp_listen(&conn2, 1);
@@ -151,8 +163,11 @@ void test_connect_listen(void)
      * 4.    OPEN    <SEQ=101><ACK=200> --->                    OPEN
      */
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
+    rdp_init_connection(&conn1, outbuf1, inbuf1);
+    rdp_init_connection(&conn2, outbuf2, inbuf2);
+
+    set_cbs(&conn1);
+    set_cbs(&conn2);
 
     printf("C2 - listen\n");
     res = rdp_listen(&conn2, 1);
@@ -230,8 +245,11 @@ void test_connect_connect_1(void)
 {
     printf("\nTEST: Connect : Connect 1\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
+    rdp_init_connection(&conn1, outbuf1, inbuf1);
+    rdp_init_connection(&conn2, outbuf2, inbuf2);
+
+    set_cbs(&conn1);
+    set_cbs(&conn2);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);
@@ -319,8 +337,11 @@ void test_connect_connect_2(void)
 {
     printf("\nTEST: Connect : Connect 2\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
+    rdp_init_connection(&conn1, outbuf1, inbuf1);
+    rdp_init_connection(&conn2, outbuf2, inbuf2);
+
+    set_cbs(&conn1);
+    set_cbs(&conn2);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);
@@ -398,8 +419,11 @@ void test_connect_connect_3(void)
 {
     printf("\nTEST: Connect : Connect 3\n\n");
     bool res;
-    rdp_init_connection(&conn1, outbuf1, inbuf1, &cbs, NULL);
-    rdp_init_connection(&conn2, outbuf2, inbuf2, &cbs, NULL);
+    rdp_init_connection(&conn1, outbuf1, inbuf1);
+    rdp_init_connection(&conn2, outbuf2, inbuf2);
+
+    set_cbs(&conn1);
+    set_cbs(&conn2);
 
     printf("C1 - send SYN\n");
     res = rdp_connect(&conn1, 2, 1);
@@ -524,8 +548,7 @@ void test_data_send_packet_lost_1(void)
     
     // package lost
 
-    res = rdp_retry(&conn1);
-    assert(res);
+    rdp_clock(&conn1, 6000000UL);
 
     res = rdp_received(&conn2, outbuf1);
     assert(res);
@@ -563,8 +586,7 @@ void test_data_send_packet_lost_2(void)
 
     // ack package lost
     // C1 resends data
-    res = rdp_retry(&conn1);
-    assert(res);
+    rdp_clock(&conn1, 6000000UL);
 
     // C2 receives data again, but must ignore it, only ACK send
     res = rdp_received(&conn2, outbuf1);

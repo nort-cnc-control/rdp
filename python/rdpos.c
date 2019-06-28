@@ -3,12 +3,12 @@
 
 static PyObject* create_connection(PyObject* self, PyObject* args)
 {
-    
+    PyObject* connection;
     return Py_None;
 }
 
 static PyMethodDef myMethods[] = {
-    { "Connection", create_connection, METH_NOARGS, "Create new connection" },
+    { "create_connection", create_connection, METH_NOARGS, "Create new connection" },
     { NULL, NULL, 0, NULL }
 };
 

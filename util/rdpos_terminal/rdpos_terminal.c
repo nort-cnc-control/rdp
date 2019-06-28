@@ -15,7 +15,7 @@ pthread_mutex_t mp;
 int cnctd = 0;
 
 static struct rdpos_connection_s sconn;
-static struct rdp_connection_s *conn = &sconn.rdp_conn;
+static struct rdp_connection_s conn;
 
 int clsd;
 int fd;
@@ -55,29 +55,9 @@ void data_received(struct rdp_connection_s *conn, const uint8_t *buf, size_t len
     printf("\nReceived: %.*s\n", len, buf);
 }
 
-static struct rdp_cbs_s cbs = {
-    .connected = connected,
-    .closed = closed,
-    .data_send_completed = data_send_completed,
-    .data_received = data_received,
-};
-
-static struct rdpos_cbs_s scbs = {
-    .send_fn = send_serial,
-};
-
 static uint8_t rdp_recv_buf[RDP_MAX_SEGMENT_SIZE];
 static uint8_t rdp_outbuf[RDP_MAX_SEGMENT_SIZE];
 static uint8_t serial_inbuf[RDP_MAX_SEGMENT_SIZE];
-
-static struct rdpos_buffer_set_s bufs = {
-    .rdp_outbuf = rdp_outbuf,
-    .rdp_outbuf_len = RDP_MAX_SEGMENT_SIZE,
-    .rdp_recvbuf = rdp_recv_buf,
-    .rdp_recvbuf_len = RDP_MAX_SEGMENT_SIZE,
-    .serial_receive_buf = serial_inbuf,
-    .serial_receive_buf_len = RDP_MAX_SEGMENT_SIZE,
-};
 
 void *receive(void *arg)
 {
@@ -96,7 +76,7 @@ void *receive(void *arg)
         pthread_mutex_lock(&communication_lock);
         bool res = rdpos_byte_received(&sconn, b);
         pthread_mutex_unlock(&communication_lock);
-        if (conn->state == RDP_CLOSED)
+        if (conn.state == RDP_CLOSED)
         {
             printf("Exit\n");
             break;
@@ -113,7 +93,7 @@ void handle_exit(int signo)
     {
         printf("received SIGINT\n");
         pthread_mutex_lock(&communication_lock);
-        rdp_close(conn);
+        rdp_close(&conn);
         pthread_mutex_unlock(&communication_lock);
         pthread_join(tid, NULL);
         pthread_mutex_destroy(&communication_lock);
@@ -123,7 +103,7 @@ void handle_exit(int signo)
 
 void rdpclock(union sigval sig)
 {
-    rdp_clock(conn, 1000);
+    rdp_clock(&conn, 1000);
 }
 
 int main(int argc, const char **argv)
@@ -143,7 +123,15 @@ int main(int argc, const char **argv)
         return 0;
     }
 
-    rdpos_init_connection(&sconn, &bufs, &cbs, &scbs);
+
+    rdp_init_connection(&conn, rdp_outbuf, rdp_recv_buf);
+    rdpos_init_connection(&sconn, &conn, serial_inbuf, sizeof(serial_inbuf));
+
+    rdp_set_closed_cb(&conn, closed);
+    rdp_set_connected_cb(&conn, connected);
+    rdp_set_data_received_cb(&conn, data_received);
+    rdp_set_data_send_completed_cb(&conn, data_send_completed);
+    rdpos_set_send_cb(&sconn, send_serial);
 
     clsd = 0;
     pthread_cond_init(&connected_flag, NULL);
@@ -170,7 +158,7 @@ int main(int argc, const char **argv)
     usleep(100000);
 
     pthread_mutex_lock(&communication_lock);
-    rdp_connect(conn, 1, 1);
+    rdp_connect(&conn, 1, 1);
     pthread_mutex_unlock(&communication_lock);
 
     pthread_attr_init(&attr);
@@ -186,7 +174,7 @@ int main(int argc, const char **argv)
         printf("> ");
         scanf("%s", pbuf);
         pthread_mutex_lock(&communication_lock);
-        rdp_send(conn, pbuf, strlen(pbuf));
+        rdp_send(&conn, pbuf, strlen(pbuf));
         pthread_mutex_unlock(&communication_lock);
     }
 

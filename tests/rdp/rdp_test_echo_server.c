@@ -60,6 +60,16 @@ struct rdp_cbs_s cbs = {
     .data_received = data_received,
 };
 
+static void set_cbs(struct rdp_connection_s *conn)
+{
+    rdp_set_closed_cb(conn, closed);
+    rdp_set_connected_cb(conn, connected);
+    rdp_set_data_received_cb(conn, data_received);
+    rdp_set_data_send_completed_cb(conn, data_send_completed);
+    rdp_set_send_cb(conn, send_rdp);
+}
+
+
 int main(void)
 {
     fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -86,7 +96,8 @@ int main(void)
 
     struct rdp_connection_s conn;
 
-    rdp_init_connection(&conn, outbuffer, received, &cbs, NULL);
+    rdp_init_connection(&conn, outbuffer, received);
+    set_cbs(&conn);
     rdp_listen(&conn, 1);
 
     while (true)
