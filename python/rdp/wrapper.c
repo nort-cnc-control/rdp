@@ -147,7 +147,11 @@ static PyObject* py_rdp_create_connection(PyObject* self, PyObject* args)
     memset(conn, 0, sizeof(*conn));
     rdp_init_connection(&conn->connection, conn->rdp_outbuf, conn->rdp_recv_buf);
 
+    conn->connected_cb = Py_None;
+    conn->closed_cb = Py_None;
+    conn->data_transmitted_cb = Py_None;
     conn->data_received_cb = Py_None;
+    conn->dgram_send_cb = Py_None;
 
     rdp_set_connected_cb(&conn->connection, connected_cb);
     rdp_set_closed_cb(&conn->connection, closed_cb);
