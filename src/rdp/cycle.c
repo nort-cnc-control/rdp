@@ -493,21 +493,30 @@ bool rdp_connect(struct rdp_connection_s *conn, uint8_t src_port, uint8_t dst_po
 
 bool rdp_close(struct rdp_connection_s *conn)
 {
-    if (conn->state != RDP_OPEN)
+    switch (conn->state)
+    {
+    case RDP_OPEN: {
+        conn->state = RDP_ACTIVE_CLOSE_WAIT;
+        size_t len = rdb_build_rst_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
+        conn->snd.una = conn->snd.nxt;
+        conn->snd.nxt++;
+        conn->out_data_length = len;
+        if (conn->cbs.send)
+            conn->cbs.send(conn, conn->outbuf, len);
+        conn->wait_ack.time = 0;
+        conn->wait_ack.flag = 1;
+        conn->wait_close.time = 0;
+        conn->wait_close.flag = 1;
+        conn->wait_keepalive_send.flag = 0;
+        return true;
+    }
+    case RDP_LISTEN: {
+        conn->state = RDP_CLOSED;
+        return true;
+    }
+    default:
         return false;
-    conn->state = RDP_ACTIVE_CLOSE_WAIT;
-    size_t len = rdb_build_rst_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur);
-    conn->snd.una = conn->snd.nxt;
-    conn->snd.nxt++;
-    conn->out_data_length = len;
-    if (conn->cbs.send)
-        conn->cbs.send(conn, conn->outbuf, len);
-    conn->wait_ack.time = 0;
-    conn->wait_ack.flag = 1;
-    conn->wait_close.time = 0;
-    conn->wait_close.flag = 1;
-    conn->wait_keepalive_send.flag = 0;
-    return true;
+    }
 }
 
 bool rdp_final_close(struct rdp_connection_s *conn)
@@ -550,9 +559,13 @@ bool rdp_send(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen)
     return true;
 }
 
-bool rdp_received(struct rdp_connection_s *conn, const uint8_t *inbuf)
+bool rdp_received(struct rdp_connection_s *conn, const uint8_t *inbuf, size_t len)
 {
+    if (len < sizeof(struct rdp_header_s))
+        return false;
     struct rdp_header_s *hdr = (struct rdp_header_s *)inbuf;
+    if (len < hdr->header_length + hdr->data_length)
+        return false;
     rdp_pkg_rcvd(conn);
     enum rdp_package_type_e type = rdp_package_type(inbuf);
     switch (type)

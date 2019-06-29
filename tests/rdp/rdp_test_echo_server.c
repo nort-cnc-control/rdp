@@ -120,7 +120,7 @@ int main(void)
         }
 
         printf("state = %i\n", conn.state);
-        bool res = rdp_received(&conn, inbuffer);
+        bool res = rdp_received(&conn, inbuffer, n);
         printf("Res = %i\n", res);
         if (cnctd)
         {

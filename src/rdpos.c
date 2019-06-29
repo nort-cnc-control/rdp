@@ -12,7 +12,7 @@ static void datagram_received(const void *data, size_t len, void *arg)
 {
     struct rdpos_connection_s *sconn = arg;
     struct rdp_connection_s *conn = sconn->rdp_conn;
-    bool res = rdp_received(conn, (const uint8_t*)data);
+    bool res = rdp_received(conn, (const uint8_t*)data, len);
 }
 
 void rdpos_init_connection(struct rdpos_connection_s *conn,

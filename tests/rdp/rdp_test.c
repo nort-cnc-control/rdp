@@ -120,13 +120,13 @@ void open_connections(void)
     
     size_t rcvd;
     printf("C2 - receive SYN\n");
-    rdp_received(&conn2, outbuf1);
+    rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     
     printf("C1 - SYN, ACK receive\n");
-    rdp_received(&conn1, outbuf2);
+    rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     
     printf("C2 - ACK receive\n");
-    rdp_received(&conn2, outbuf1);
+    rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
 }
 
 void close_connecions()
@@ -135,13 +135,13 @@ void close_connecions()
     rdp_close(&conn1);
    
     printf("C2 - RST,ACK send\n");
-    rdp_received(&conn2, outbuf1);
+    rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     
     printf("C1 - RST,ACK receive\n");
-    rdp_received(&conn1, outbuf2);
+    rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     
     printf("C2 - ACK receive\n");
-    rdp_received(&conn2, outbuf1);
+    rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
 }
 
 
@@ -185,7 +185,7 @@ void test_connect_listen(void)
     assert(conn2.state == RDP_LISTEN);
 
     printf("C2 - receive SYN\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     // 3.    SYN-SENT <--- <SEQ=1><ACK=1><SYN,ACK> SYN-RCVD
     assert(res);
     assert(conn1.state == RDP_SYN_SENT);
@@ -193,7 +193,7 @@ void test_connect_listen(void)
     assert(rcvd == 0);
 
     printf("C1 - SYN, ACK receive\n");
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     // 4.    OPEN   <SEQ=2><ACK=1> --->    SYN-RCVD
     assert(res);
     assert(conn1.state == RDP_OPEN);
@@ -201,7 +201,7 @@ void test_connect_listen(void)
     assert(rcvd == 0);
 
     printf("C2 - ACK receive\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     // 5.    OPEN       OPEN
     assert(res);
     assert(conn1.state == RDP_OPEN);
@@ -217,7 +217,7 @@ void test_connect_listen(void)
     assert(conn2.state == RDP_OPEN);
 
     printf("C2 - RST,ACK send\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     // 7. CLOSE-WAIT    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
@@ -225,7 +225,7 @@ void test_connect_listen(void)
     assert(rcvd == 0);
 
     printf("C1 - RST,ACK receive\n");
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     // 8. CLOSED    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_CLOSED);
@@ -234,7 +234,7 @@ void test_connect_listen(void)
 
 
     printf("C2 - ACK receive\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     // 9. CLOSED        CLOSED
     assert(res);
     assert(conn1.state == RDP_CLOSED);
@@ -267,14 +267,14 @@ void test_connect_connect_1(void)
     memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
 
     printf("C2 - receive SYN and send SYN,ACK\n");
-    res = rdp_received(&conn2, tmp1);
+    res = rdp_received(&conn2, tmp1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_SYN_SENT);
     assert(conn2.state == RDP_SYN_RCVD);
     assert(rcvd == 0);
 
     printf("C1 - receive SYN and send SYN,ACK\n");
-    res = rdp_received(&conn1, tmp2);
+    res = rdp_received(&conn1, tmp2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_SYN_RCVD);
     assert(conn2.state == RDP_SYN_RCVD);
@@ -284,14 +284,14 @@ void test_connect_connect_1(void)
     memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
 
     printf("C2 - SYN,ACK receive\n");
-    res = rdp_received(&conn2, tmp1);
+    res = rdp_received(&conn2, tmp1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_SYN_RCVD);
     assert(conn2.state == RDP_OPEN);
     assert(rcvd == 0);
 
     printf("C1 - SYN,ACK receive\n");
-    res = rdp_received(&conn1, tmp2);
+    res = rdp_received(&conn1, tmp2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_OPEN);
     assert(conn2.state == RDP_OPEN);
@@ -317,7 +317,7 @@ void test_connect_connect_1(void)
     memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
 
     printf("C2 - RST receive\n");
-    res = rdp_received(&conn2, tmp1);
+    res = rdp_received(&conn2, tmp1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
     assert(conn2.state == RDP_CLOSED);
@@ -325,7 +325,7 @@ void test_connect_connect_1(void)
 
 
     printf("C1 - RST receive\n");
-    res = rdp_received(&conn1, tmp2);
+    res = rdp_received(&conn1, tmp2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_CLOSED);
     assert(conn2.state == RDP_CLOSED);
@@ -350,7 +350,7 @@ void test_connect_connect_2(void)
     assert(conn2.state == RDP_CLOSED);
 
     printf("C2 - receive SYN\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res == 0);
     assert(conn1.state == RDP_SYN_SENT);
     assert(conn2.state == RDP_CLOSED);
@@ -363,21 +363,21 @@ void test_connect_connect_2(void)
     assert(conn2.state == RDP_SYN_SENT);
 
     printf("C1 - receive SYN\n");
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_SYN_RCVD);
     assert(conn2.state == RDP_SYN_SENT);
     assert(rcvd == 0);
 
     printf("C2 - receive SYN,ACK\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_SYN_RCVD);
     assert(conn2.state == RDP_OPEN);
     assert(rcvd == 0);
 
     printf("C1 - ACK receive\n");
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_OPEN);
     assert(conn2.state == RDP_OPEN);
@@ -391,7 +391,7 @@ void test_connect_connect_2(void)
     assert(conn2.state == RDP_OPEN);
 
     printf("C2 - RST,ACK send\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     // 7. CLOSE-WAIT    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
@@ -399,7 +399,7 @@ void test_connect_connect_2(void)
     assert(rcvd == 0);
 
     printf("C1 - RST,ACK receive\n");
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     // 8. CLOSED    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_CLOSED);
@@ -408,7 +408,7 @@ void test_connect_connect_2(void)
 
 
     printf("C2 - ACK receive\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     // 9. CLOSED        CLOSED
     assert(res);
     assert(conn1.state == RDP_CLOSED);
@@ -432,7 +432,7 @@ void test_connect_connect_3(void)
     assert(conn2.state == RDP_CLOSED);
 
     printf("C2 - receive SYN\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res == 0);
     assert(conn1.state == RDP_SYN_SENT);
     assert(conn2.state == RDP_CLOSED);
@@ -453,21 +453,21 @@ void test_connect_connect_3(void)
     assert(conn2.state == RDP_SYN_SENT);
 
     printf("C1 - receive SYN\n");
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_SYN_RCVD);
     assert(conn2.state == RDP_SYN_SENT);
     assert(rcvd == 0);
 
     printf("C2 - receive SYN,ACK\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_SYN_RCVD);
     assert(conn2.state == RDP_OPEN);
     assert(rcvd == 0);
 
     printf("C1 - ACK receive\n");
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(conn1.state == RDP_OPEN);
     assert(conn2.state == RDP_OPEN);
@@ -481,7 +481,7 @@ void test_connect_connect_3(void)
     assert(conn2.state == RDP_OPEN);
 
     printf("C2 - RST,ACK send\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     // 7. CLOSE-WAIT    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_ACTIVE_CLOSE_WAIT);
@@ -489,7 +489,7 @@ void test_connect_connect_3(void)
     assert(rcvd == 0);
 
     printf("C1 - RST,ACK receive\n");
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     // 8. CLOSED    CLOSE-WAIT
     assert(res);
     assert(conn1.state == RDP_CLOSED);
@@ -497,7 +497,7 @@ void test_connect_connect_3(void)
     assert(rcvd == 0);
 
     printf("C2 - ACK receive\n");
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     // 9. CLOSED        CLOSED
     assert(res);
     assert(conn1.state == RDP_CLOSED);
@@ -518,13 +518,13 @@ void test_data_send(void)
     res = rdp_send(&conn1, data, dlen);
     assert(res);
     
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf2, dlen));
     rcvd = 0;
 
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == 0);
 
@@ -550,13 +550,13 @@ void test_data_send_packet_lost_1(void)
 
     rdp_clock(&conn1, 6000000UL);
 
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf2, dlen));
     rcvd = 0;
 
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == 0);
 
@@ -578,7 +578,7 @@ void test_data_send_packet_lost_2(void)
     res = rdp_send(&conn1, data, dlen);
     assert(res);
     
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf2, dlen));
@@ -589,11 +589,11 @@ void test_data_send_packet_lost_2(void)
     rdp_clock(&conn1, 6000000UL);
 
     // C2 receives data again, but must ignore it, only ACK send
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == 0);
 
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == 0);
 
@@ -618,19 +618,19 @@ void test_data_send_keepalive_1(void)
     memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
     memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
 
-    res = rdp_received(&conn2, tmp1);
+    res = rdp_received(&conn2, tmp1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
-    res = rdp_received(&conn1, tmp2);
+    res = rdp_received(&conn1, tmp2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
     memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
     memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
 
-    res = rdp_received(&conn2, tmp1);
+    res = rdp_received(&conn2, tmp1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
-    res = rdp_received(&conn1, tmp2);
+    res = rdp_received(&conn1, tmp2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
     uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
@@ -639,13 +639,13 @@ void test_data_send_keepalive_1(void)
     res = rdp_send(&conn1, data, dlen);
     assert(res);
     
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf2, dlen));
     rcvd = 0;
 
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == 0);
 
@@ -672,19 +672,19 @@ void test_data_send_keepalive_2(void)
     memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
     memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
 
-    res = rdp_received(&conn2, tmp1);
+    res = rdp_received(&conn2, tmp1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
-    res = rdp_received(&conn1, tmp2);
+    res = rdp_received(&conn1, tmp2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
     memcpy(tmp1, outbuf1, RDP_MAX_SEGMENT_SIZE);
     memcpy(tmp2, outbuf2, RDP_MAX_SEGMENT_SIZE);
 
-    res = rdp_received(&conn2, tmp1);
+    res = rdp_received(&conn2, tmp1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
-    res = rdp_received(&conn1, tmp2);
+    res = rdp_received(&conn1, tmp2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
     uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
@@ -693,13 +693,13 @@ void test_data_send_keepalive_2(void)
     res = rdp_send(&conn2, data, dlen);
     assert(res);
     
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf1, dlen));
     rcvd = 0;
 
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == 0);
 
@@ -722,18 +722,18 @@ void test_data_send_keepalive_3(void)
     // Keepalive packet
     rdp_clock(&conn1, 6000000);
 
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
     rdp_clock(&conn2, 6000000);
 
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
 
 
@@ -743,13 +743,13 @@ void test_data_send_keepalive_3(void)
     res = rdp_send(&conn1, data, dlen);
     assert(res);
     
-    res = rdp_received(&conn2, outbuf1);
+    res = rdp_received(&conn2, outbuf1, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == dlen);
     assert(!memcmp(data, inbuf2, dlen));
     rcvd = 0;
 
-    res = rdp_received(&conn1, outbuf2);
+    res = rdp_received(&conn1, outbuf2, RDP_MAX_SEGMENT_SIZE);
     assert(res);
     assert(rcvd == 0);
 

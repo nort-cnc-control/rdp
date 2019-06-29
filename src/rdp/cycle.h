@@ -106,6 +106,6 @@ bool rdp_close(struct rdp_connection_s *conn);
 bool rdp_send(struct rdp_connection_s *conn, const uint8_t *data, size_t dlen);
 bool rdp_can_send(struct rdp_connection_s *conn);
 
-bool rdp_received(struct rdp_connection_s *conn, const uint8_t *inbuf);
+bool rdp_received(struct rdp_connection_s *conn, const uint8_t *inbuf, size_t len);
 
 void rdp_clock(struct rdp_connection_s *conn, int dt);
