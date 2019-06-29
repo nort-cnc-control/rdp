@@ -2,7 +2,7 @@
 
 import rdp.wrapper
 
-class Rdp(object):
+class RDP(object):
     def __init__(self, connected_cb=None,
                        closed_cb=None,
                        dgram_send_cb=None,

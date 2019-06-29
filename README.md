@@ -1,3 +1,3 @@
-RDP protocol (RFC908) over serial line. C library and python wrapper
+Modified RDP protocol (RFC908). C library and python wrapper
 
 License: MIT
