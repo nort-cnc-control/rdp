@@ -22,4 +22,4 @@ packages = ['rdp']
 
 print("PACKAGES = ", packages)
 
-setup(name = 'Rdp', version = '1.0', packages=packages, ext_modules = [wrapper])
+setup(name = 'rdp', version = '1.0', packages=packages, ext_modules = [wrapper])

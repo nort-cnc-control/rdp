@@ -227,6 +227,11 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
             conn->out_data_length = len;
             if (conn->cbs.send)
                 conn->cbs.send(conn, conn->outbuf, len);
+            conn->wait_ack.time = 0;
+            conn->wait_ack.flag = 1;
+            conn->wait_close.time = 0;
+            conn->wait_close.flag = 1;
+            conn->wait_keepalive_send.flag = 0;
             return true;
         case RDP_ACTIVE_CLOSE_WAIT:
             conn->state = RDP_CLOSED;
@@ -243,6 +248,11 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
             conn->out_data_length = len;
             if (conn->cbs.send)
                 conn->cbs.send(conn, conn->outbuf, len);
+            conn->wait_ack.time = 0;
+            conn->wait_ack.flag = 1;
+            conn->wait_close.time = 0;
+            conn->wait_close.flag = 1;
+            conn->wait_keepalive_send.flag = 0;
             return true;
     }
     return false;
@@ -493,6 +503,7 @@ bool rdp_connect(struct rdp_connection_s *conn, uint8_t src_port, uint8_t dst_po
 
 bool rdp_close(struct rdp_connection_s *conn)
 {
+    //printf("*** closing. state=%i\n", conn->state);
     switch (conn->state)
     {
     case RDP_OPEN: {
@@ -521,6 +532,7 @@ bool rdp_close(struct rdp_connection_s *conn)
 
 bool rdp_final_close(struct rdp_connection_s *conn)
 {
+    //printf("FINAL CLOSE\n");
     if (conn->state == RDP_CLOSED)
         return true;
     if (conn->state != RDP_ACTIVE_CLOSE_WAIT &&
@@ -634,6 +646,7 @@ void rdp_clock(struct rdp_connection_s *conn, int dt)
     }
     if (conn->wait_close.flag)
     {
+        //printf("****** Waiting for close\n");
         conn->wait_close.time += dt;
         if (conn->wait_close.time > RDP_CLOSE_TIMEOUT)
         {

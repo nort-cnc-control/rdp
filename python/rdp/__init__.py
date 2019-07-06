@@ -1,1 +1,1 @@
-from rdp.rdp import Rdp
+from rdp.rdp import RDP

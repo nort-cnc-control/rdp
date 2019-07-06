@@ -6,6 +6,17 @@
 
 #define CLOCK_PERIOD_US 1000
 
+#define SET_CB(conn, cb_name, val) do {  \
+        if (conn->cb_name != Py_None)    \
+            Py_DECREF(conn->cb_name);    \
+        conn->cb_name = val;             \
+        if (conn->cb_name != Py_None)    \
+            Py_INCREF(conn->cb_name);    \
+    } while(0)
+
+#define CLEAR_CB(conn, cb)  SET_CB(conn, cb, Py_None)
+
+
 struct py_rdp_connection_s {
     struct rdp_connection_s connection;
     uint8_t rdp_recv_buf[RDP_MAX_SEGMENT_SIZE];
@@ -21,73 +32,22 @@ struct py_rdp_connection_s {
     };
 };
 
-struct list_element_s {
-    struct py_rdp_connection_s *c;
-    struct list_element_s *next;
-    struct list_element_s *prev;
-};
 
-static struct list_element_s *cns;
+static void add_connection_to_list(PyObject *c)
+{
+}
+
+static void remove_connection_from_list(PyObject *c)
+{
+}
 
 static void clear_list(void)
 {
-    while (cns != NULL)
-    {
-        struct list_element_s *ptr = cns;
-        struct py_rdp_connection_s *conn = cns->c;
-        free(conn);
-        cns = cns->next;
-        free(ptr);
-    }
-}
-
-static void add_connection_to_list(struct py_rdp_connection_s *c)
-{
-    struct list_element_s *el = malloc(sizeof(struct list_element_s));
-    el->next = cns;
-    el->prev = NULL;
-    if (el->next != NULL)
-    {
-        el->next->prev = el;
-    }
-}
-
-static void remove_connection_from_list(struct py_rdp_connection_s *c)
-{
-    if (cns == NULL)
-        return;
-    struct list_element_s *ptr = cns;
-    while (ptr != NULL && ptr->c != c)
-        ptr = ptr->next;
-    if (ptr == NULL)
-        return;
-    
-    if (ptr == cns)
-    {
-        cns = cns->next;
-        cns->prev = NULL;
-        free(ptr);
-    }
-    else if (ptr->next == NULL)
-    {
-        ptr->prev->next = NULL;
-        free(ptr);
-    }
-    else
-    {
-        ptr->prev->next = ptr->next;
-        ptr->next->prev = ptr->prev;
-        free(ptr);
-    }
 }
 
 static void make_clock_tick(void)
 {
-    struct list_element_s *ptr = cns;
-    while (ptr != NULL)
-    {
-        rdp_clock(&ptr->c->connection, CLOCK_PERIOD_US);
-    }
+    
 }
 
 static void _rdp_destroy_connection(PyObject *obj)
@@ -95,7 +55,12 @@ static void _rdp_destroy_connection(PyObject *obj)
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(obj, "RDP Connection");
     if (conn == NULL)
         return;
-    remove_connection_from_list(conn);
+    CLEAR_CB(conn, connected_cb);
+    CLEAR_CB(conn, closed_cb);
+    CLEAR_CB(conn, data_received_cb);
+    CLEAR_CB(conn, data_transmitted_cb);
+    CLEAR_CB(conn, dgram_send_cb);
+    remove_connection_from_list(obj);
     free(conn);
 }
 
@@ -104,7 +69,11 @@ static void connected_cb(struct rdp_connection_s *c)
     PyObject *connection = c->user_arg;
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn->connected_cb != Py_None)
-        PyObject_CallFunction(conn->connected_cb, "O", connection);
+    {
+        PyObject *args = Py_BuildValue("(O)", connection);
+        PyObject_CallObject(conn->connected_cb, args);
+        Py_DECREF(args);
+    }
 }
 
 static void closed_cb(struct rdp_connection_s *c)
@@ -112,7 +81,11 @@ static void closed_cb(struct rdp_connection_s *c)
     PyObject *connection = c->user_arg;
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn->closed_cb != Py_None)
-        PyObject_CallFunction(conn->closed_cb, "O", connection);
+    {
+        PyObject *args = Py_BuildValue("(O)", connection);
+        PyObject_CallObject(conn->closed_cb, args);
+        Py_DECREF(args);
+    }
 }
 
 static void data_transmitted_cb(struct rdp_connection_s *c)
@@ -120,7 +93,11 @@ static void data_transmitted_cb(struct rdp_connection_s *c)
     PyObject *connection = c->user_arg;
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn->data_transmitted_cb != Py_None)
-        PyObject_CallFunction(conn->data_transmitted_cb, "O", connection);
+    {
+        PyObject *args = Py_BuildValue("(O)", connection);
+        PyObject_CallObject(conn->data_transmitted_cb, args);
+        Py_DECREF(args);
+    }
 }
 
 static void data_received_cb(struct rdp_connection_s *c, const uint8_t *d, size_t l)
@@ -128,7 +105,11 @@ static void data_received_cb(struct rdp_connection_s *c, const uint8_t *d, size_
     PyObject *connection = c->user_arg;
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn->data_received_cb != Py_None)
-        PyObject_CallFunction(conn->data_received_cb, "Oy#", connection, d, l);
+    {
+        PyObject *args = Py_BuildValue("(Oy#)", connection, d, l);
+        PyObject_CallObject(conn->data_received_cb, args);
+        Py_DECREF(args);
+    }
 }
 
 static void dgram_send_cb(struct rdp_connection_s *c, const uint8_t *d, size_t l)
@@ -136,7 +117,11 @@ static void dgram_send_cb(struct rdp_connection_s *c, const uint8_t *d, size_t l
     PyObject *connection = c->user_arg;
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn->dgram_send_cb != Py_None)
-        PyObject_CallFunction(conn->dgram_send_cb, "Oy#", connection, d, l);
+    {
+        PyObject *args = Py_BuildValue("(Oy#)", connection, d, l);
+        PyObject_CallObject(conn->dgram_send_cb, args);
+        Py_DECREF(args);
+    }
 }
 
 static PyObject* py_rdp_create_connection(PyObject* self, PyObject* args)
@@ -161,7 +146,7 @@ static PyObject* py_rdp_create_connection(PyObject* self, PyObject* args)
 
     PyObject* connection = PyCapsule_New(conn, "RDP Connection", _rdp_destroy_connection);
     rdp_set_user_argument(&conn->connection, connection);
-    add_connection_to_list(conn);
+    add_connection_to_list(connection);
     return connection;
 }
 
@@ -299,6 +284,7 @@ static PyObject* py_rdp_dgram_receive(PyObject* self, PyObject* args)
     return PyBool_FromLong(res);
 }
 
+
 static PyObject* py_rdp_set_connected_cb(PyObject* self, PyObject* args)
 {
     PyObject *connection;
@@ -308,7 +294,7 @@ static PyObject* py_rdp_set_connected_cb(PyObject* self, PyObject* args)
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn == NULL)
         return NULL;
-    conn->connected_cb = cb;
+    SET_CB(conn, connected_cb, cb);
     Py_RETURN_NONE;
 }
 
@@ -321,7 +307,7 @@ static PyObject* py_rdp_set_closed_cb(PyObject* self, PyObject* args)
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn == NULL)
         return NULL;
-    conn->closed_cb = cb;
+    SET_CB(conn, closed_cb, cb);
     Py_RETURN_NONE;
 }
 
@@ -334,7 +320,7 @@ static PyObject* py_rdp_set_data_transmitted_cb(PyObject* self, PyObject* args)
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn == NULL)
         return NULL;
-    conn->data_transmitted_cb = cb;
+    SET_CB(conn, data_transmitted_cb, cb);
     Py_RETURN_NONE;
 }
 
@@ -347,7 +333,7 @@ static PyObject* py_rdp_set_data_received_cb(PyObject* self, PyObject* args)
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn == NULL)
         return NULL;
-    conn->data_received_cb = cb;
+    SET_CB(conn, data_received_cb, cb);
     Py_RETURN_NONE;
 }
 
@@ -360,10 +346,9 @@ static PyObject* py_rdp_set_dgram_send_cb(PyObject* self, PyObject* args)
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
     if (conn == NULL)
         return NULL;
-    conn->dgram_send_cb = cb;
+    SET_CB(conn, dgram_send_cb, cb);
     Py_RETURN_NONE;
 }
-
 
 static PyMethodDef myMethods[] = {
     { "create_connection", py_rdp_create_connection, METH_NOARGS, "Create connection" },
@@ -393,7 +378,5 @@ static struct PyModuleDef myModule = {
 
 PyMODINIT_FUNC PyInit_wrapper(void)
 {
-    cns = NULL;
-    Py_AtExit(clear_list);
     return PyModule_Create(&myModule);
 }
