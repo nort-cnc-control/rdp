@@ -69,6 +69,8 @@ RST,ACK |         |             |       |            |     snd ACK        |
 
 */
 
+static bool rdp_final_close(struct rdp_connection_s *conn);
+
 static void rdp_pkg_rcvd(struct rdp_connection_s *conn)
 {
     conn->wait_keepalive.time = 0;
@@ -232,12 +234,10 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
             conn->wait_close.time = 0;
             conn->wait_close.flag = 1;
             conn->wait_keepalive_send.flag = 0;
+            conn->wait_keepalive.flag = 0;
             return true;
         case RDP_ACTIVE_CLOSE_WAIT:
-            conn->state = RDP_CLOSED;
-            if (conn->cbs.closed)
-                conn->cbs.closed(conn);
-            return true;
+            return rdp_final_close(conn);
         case RDP_PASSIVE_CLOSE_WAIT:
             conn->rcv.cur = seq;
             conn->rcv.expect = seq + 1;
@@ -248,12 +248,7 @@ static bool rdp_rst_received(struct rdp_connection_s *conn, uint32_t seq)
             conn->out_data_length = len;
             if (conn->cbs.send)
                 conn->cbs.send(conn, conn->outbuf, len);
-            conn->wait_ack.time = 0;
-            conn->wait_ack.flag = 1;
-            conn->wait_close.time = 0;
-            conn->wait_close.flag = 1;
-            conn->wait_keepalive_send.flag = 0;
-            return true;
+            return rdp_final_close(conn);
     }
     return false;
 }
@@ -277,15 +272,11 @@ static bool rdp_rstack_received(struct rdp_connection_s *conn, uint32_t seq, uin
     conn->rcv.expect = seq + 1;
     if (conn->state == RDP_ACTIVE_CLOSE_WAIT)
     {
-        conn->state = RDP_CLOSED;
         size_t len = rdp_build_ack_package(conn->outbuf, conn->local_port, conn->remote_port, conn->snd.nxt, conn->rcv.cur, NULL, 0);
-
         conn->out_data_length = len;
         if (conn->cbs.send)
             conn->cbs.send(conn, conn->outbuf, len);
-        if (conn->cbs.closed)
-            conn->cbs.closed(conn);
-        return true;
+        return rdp_final_close(conn);
     }
     return false;
 }
@@ -325,10 +316,7 @@ static bool rdp_empty_ack_received(struct rdp_connection_s *conn, uint32_t seq, 
         case RDP_OPEN:
             return true;
         case RDP_PASSIVE_CLOSE_WAIT:
-            conn->state = RDP_CLOSED;
-            if (conn->cbs.closed)
-                conn->cbs.closed(conn);
-            return true;
+            return rdp_final_close(conn);
         default:
             return false;
     }
@@ -351,10 +339,7 @@ static bool rdp_ack_data_received(struct rdp_connection_s *conn, uint32_t seq, u
                 conn->cbs.send(conn, conn->outbuf, len);
             return true;
         case RDP_PASSIVE_CLOSE_WAIT:
-            conn->state = RDP_CLOSED;
-            if (conn->cbs.closed)
-                conn->cbs.closed(conn);
-            return true;
+            return rdp_final_close(conn);
         default:
             return false;
     }
@@ -518,6 +503,7 @@ bool rdp_close(struct rdp_connection_s *conn)
         conn->wait_ack.flag = 1;
         conn->wait_close.time = 0;
         conn->wait_close.flag = 1;
+        conn->wait_keepalive.flag = 0;
         conn->wait_keepalive_send.flag = 0;
         return true;
     }
@@ -530,7 +516,7 @@ bool rdp_close(struct rdp_connection_s *conn)
     }
 }
 
-bool rdp_final_close(struct rdp_connection_s *conn)
+static bool rdp_final_close(struct rdp_connection_s *conn)
 {
     //printf("FINAL CLOSE\n");
     if (conn->state == RDP_CLOSED)
@@ -650,6 +636,7 @@ void rdp_clock(struct rdp_connection_s *conn, int dt)
         conn->wait_close.time += dt;
         if (conn->wait_close.time > RDP_CLOSE_TIMEOUT)
         {
+            //printf("Close on close timeout\n");
             conn->wait_close.time = 0;
             rdp_final_close(conn);
         }
@@ -659,6 +646,7 @@ void rdp_clock(struct rdp_connection_s *conn, int dt)
         conn->wait_keepalive.time += dt;
         if (conn->wait_keepalive.time > RDP_KEEPALIVE_TIMEOUT)
         {
+            //printf("Close on keepalive timeout\n");
             conn->wait_keepalive.time = 0;
             conn->wait_keepalive.flag = 0;
             rdp_close(conn);
