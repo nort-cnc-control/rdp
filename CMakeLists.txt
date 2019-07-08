@@ -9,10 +9,6 @@ if (BUILD_TESTING)
     add_subdirectory(tests)
 endif ()
 
-if (BUILD_UTILS)
-    add_subdirectory(util/rdpos_terminal)
-endif()
-
 set(RT ${CMAKE_SOURCE_DIR}/src/)
 
 install(TARGETS rdp ARCHIVE DESTINATION lib)
