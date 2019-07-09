@@ -3,10 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-
-#define CLOCK_PERIOD_US 1000
-#define INITIAL_ALLOC 10
-#define REALLOC_ADD 10
+#include <unistd.h>
 
 #define SET_CB(conn, cb_name, val) do {  \
         if (conn->cb_name != Py_None)    \
@@ -17,8 +14,6 @@
     } while(0)
 
 #define CLEAR_CB(conn, cb)  SET_CB(conn, cb, Py_None)
-
-static pthread_t tid_rdp; /* идентификатор потока */
 
 struct py_rdp_connection_s {
     struct rdp_connection_s connection;
@@ -35,59 +30,6 @@ struct py_rdp_connection_s {
     };
 };
 
-static struct py_rdp_connection_s **conns = NULL;
-static size_t allocated;
-static size_t amount;
-
-static void add_connection_to_list(struct py_rdp_connection_s *c)
-{
-    if (amount == allocated)
-    {
-        conns = realloc(conns, (allocated + REALLOC_ADD)*sizeof(struct py_rdp_connection_s *));
-        allocated += REALLOC_ADD;
-    }
-    conns[amount++] = c;
-}
-
-static void remove_connection_from_list(struct py_rdp_connection_s *c)
-{
-    int i;
-    for (i = 0; i < amount; i++)
-    {
-        if (conns[i] == c)
-        {
-            size_t taillen = amount - i - 1;
-            if (taillen > 0)
-                memmove(&conns[i], &conns[i+1], taillen * sizeof(struct py_rdp_connection_s *));
-            amount--;
-            return;
-        }
-    }
-}
-
-static int go = 0;
-
-static void clear_list(void)
-{
-    go = 0;
-    free(conns);
-}
-
-static void* rdpclock(void *arg)
-{
-    while (go)
-    {
-        usleep(1000);
-        int i;
-        for (i = 0; i < amount; i++)
-        {
-            struct py_rdp_connection_s *conn = conns[i];
-            rdp_clock(&(conn->connection), 1000);
-        }
-    }
-    return NULL;
-}
-
 static void _rdp_destroy_connection(PyObject *obj)
 {
     struct py_rdp_connection_s *conn = PyCapsule_GetPointer(obj, "RDP Connection");
@@ -98,7 +40,6 @@ static void _rdp_destroy_connection(PyObject *obj)
     CLEAR_CB(conn, data_received_cb);
     CLEAR_CB(conn, data_transmitted_cb);
     CLEAR_CB(conn, dgram_send_cb);
-    remove_connection_from_list(conn);
     free(conn);
 }
 
@@ -184,7 +125,6 @@ static PyObject* py_rdp_create_connection(PyObject* self, PyObject* args)
 
     PyObject* connection = PyCapsule_New(conn, "RDP Connection", _rdp_destroy_connection);
     rdp_set_user_argument(&conn->connection, connection);
-    add_connection_to_list(conn);
     return connection;
 }
 
@@ -260,6 +200,19 @@ static PyObject* py_rdp_connect(PyObject* self, PyObject* args)
     }
     bool res = rdp_connect(&conn->connection, local, remote);
     return PyBool_FromLong(res);
+}
+
+static PyObject* py_rdp_clock(PyObject* self, PyObject* args)
+{
+    PyObject *connection;
+    int dt;
+    if (!PyArg_ParseTuple(args, "Oi", &connection, &dt))
+        return NULL;
+    struct py_rdp_connection_s *conn = PyCapsule_GetPointer(connection, "RDP Connection");
+    if (conn == NULL)
+        return NULL;
+    rdp_clock(&conn->connection, dt);
+    Py_RETURN_NONE;
 }
 
 static PyObject* py_rdp_close(PyObject* self, PyObject* args)
@@ -397,6 +350,7 @@ static PyMethodDef myMethods[] = {
     { "reset",  py_rdp_reset, METH_VARARGS, "Reset connection" },
     { "send", py_rdp_send, METH_VARARGS, "Send data"},
     { "datagram_receive", py_rdp_dgram_receive, METH_VARARGS, "Handle received datagram" },
+    { "tick",  py_rdp_clock, METH_VARARGS, "Add real delta time for timeouts" },
     
     { "set_connected_cb", py_rdp_set_connected_cb, METH_VARARGS, "Set connected callback" },
     { "set_closed_cb", py_rdp_set_closed_cb, METH_VARARGS, "Set closed callback" },
@@ -416,11 +370,5 @@ static struct PyModuleDef myModule = {
 
 PyMODINIT_FUNC PyInit_wrapper(void)
 {
-    conns = malloc(sizeof(struct py_rdp_connection_s*) * INITIAL_ALLOC);
-    amount = 0;
-    allocated = INITIAL_ALLOC;
-    Py_AtExit(clear_list);
-    go = 1;
-    pthread_create(&tid_rdp, NULL, rdpclock, NULL);
     return PyModule_Create(&myModule);
 }

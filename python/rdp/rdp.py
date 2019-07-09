@@ -45,3 +45,6 @@ class RDP(object):
 
     def dgram_receive(self, dgram):
         return rdp.wrapper.datagram_receive(self.__conn, dgram)
+
+    def tick(self, dt):
+        return rdp.wrapper.tick(self.__conn, dt)
